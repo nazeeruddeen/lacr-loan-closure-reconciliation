@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lacr-config
+  namespace: lacr-loan
+data:
+  SERVER_PORT: "8012"
+  SPRING_DATASOURCE_URL: jdbc:mysql://lacr-mysql:3306/lacr_loan_closure_reconciliation?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+  SPRING_JPA_SHOW_SQL: "false"
+  SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 50MB
+  SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 50MB
+

@@ -1,0 +1,36 @@
+:root {
+  color-scheme: dark;
+  --bg: #07111f;
+  --bg-2: #0c1a2f;
+  --panel: rgba(11, 24, 44, 0.92);
+  --panel-strong: rgba(16, 31, 56, 0.96);
+  --line: rgba(154, 184, 219, 0.16);
+  --text: #eaf2ff;
+  --muted: #8ea4c1;
+  --accent: #6ce5c8;
+  --accent-2: #ffb454;
+  --danger: #ff6b6b;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(108, 229, 200, 0.16), transparent 28%),
+    radial-gradient(circle at top right, rgba(255, 180, 84, 0.12), transparent 24%),
+    linear-gradient(180deg, var(--bg), var(--bg-2));
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+}

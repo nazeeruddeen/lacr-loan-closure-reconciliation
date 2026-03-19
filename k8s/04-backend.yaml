@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lacr-backend
+  namespace: lacr-loan
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lacr-backend
+  template:
+    metadata:
+      labels:
+        app: lacr-backend
+    spec:
+      containers:
+        - name: backend
+          image: lacr-loan-closure-reconciliation:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8012
+          envFrom:
+            - configMapRef:
+                name: lacr-config
+            - secretRef:
+                name: lacr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lacr-backend
+  namespace: lacr-loan
+spec:
+  selector:
+    app: lacr-backend
+  ports:
+    - port: 80
+      targetPort: 8012
+
