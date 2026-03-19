@@ -11,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
@@ -32,6 +33,18 @@ public class LoanClosureCase {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Optimistic locking version field.
+     * Interview answer: "Reconciliation is a multi-step process. If two threads (e.g. a retry
+     * and a scheduled job) both load the same case, the second writer will get an
+     * OptimisticLockingFailureException from Hibernate. We catch that, log it, and retry
+     * on a fresh read. This avoids the overhead of pessimistic row-level locks
+     * while still guaranteeing consistency."
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 
     @Column(name = "request_id", nullable = false, unique = true, length = 64)
     private String requestId;

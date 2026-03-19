@@ -1,4 +1,4 @@
-<div class="shell">
+<div class="app-layout">
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-mark">L</div>
@@ -8,39 +8,47 @@
       </div>
     </div>
 
-    <nav class="nav">
-      <a class="nav-item active">Dashboard</a>
-      <a class="nav-item">Closures</a>
-      <a class="nav-item">Reconciliation</a>
-      <a class="nav-item">Audit Events</a>
-      <a class="nav-item">Reports</a>
+    <nav class="sidebar__nav">
+      <button class="nav-item" [class.active]="activeTab === 'dashboard'" (click)="setTab('dashboard')">Dashboard</button>
+      <button class="nav-item" [class.active]="activeTab === 'closures'" (click)="setTab('closures')">Closures Queue</button>
+      <button class="nav-item" [class.active]="activeTab === 'actions'" (click)="setTab('actions')">Selected Actions</button>
+      <button class="nav-item" [class.active]="activeTab === 'audit'" (click)="setTab('audit')">Audit Stream</button>
     </nav>
-
-    <div class="sidebar-footer">
-      <div class="pill">Redis-style idempotency</div>
-      <div class="pill">Audit event store</div>
-      <div class="pill">CSV exports</div>
-    </div>
   </aside>
 
-  <main class="content">
-    <section class="hero">
+  <main class="main-content">
+    <div class="animated-panel" *ngIf="activeTab === 'dashboard'">
+      <section class="hero">
       <div class="hero-copy">
         <div class="eyebrow">Loan Account Closure and Reconciliation</div>
-        <h1>Operational dashboard for closure accuracy, auditability, and settlement control.</h1>
+        <h1>Operations dashboard for settlement accuracy, auditability, and workflow control.</h1>
         <p>
-          Monitor closure pipelines, reconcile bank-confirmed values, and inspect the audit stream from a single control room.
+          Track closure requests, reconcile bank-confirmed values, and inspect the audit stream from one control room.
         </p>
 
         <div class="hero-actions">
-          <button type="button" (click)="refreshAll()">Refresh summary</button>
-          <button type="button" class="ghost" (click)="exportSummaryCsv()">Export summary</button>
-          <button type="button" class="ghost" (click)="exportEventsCsv()">Export events</button>
+          <button type="button" [disabled]="heroAction === 'refresh'" title="Reload the summary cards and queue" (click)="refreshAll()">
+            {{ heroAction === 'refresh' ? 'Refreshing...' : 'Refresh summary' }}
+          </button>
+          <button type="button" class="ghost" [disabled]="heroAction === 'summary'" title="Download summary KPIs as CSV" (click)="exportSummaryCsv()">
+            {{ heroAction === 'summary' ? 'Downloading...' : 'Export summary' }}
+          </button>
+          <button type="button" class="ghost" [disabled]="heroAction === 'events'" title="Download audit events as CSV" (click)="exportEventsCsv()">
+            {{ heroAction === 'events' ? 'Downloading...' : 'Export events' }}
+          </button>
+        </div>
+
+        <div class="hero-status" aria-live="polite">{{ actionMessage }}</div>
+
+        <div class="meta-row">
+          <span class="chip chip-mini">Redis-style idempotency</span>
+          <span class="chip chip-mini">Audit event store</span>
+          <span class="chip chip-mini">CSV exports</span>
         </div>
       </div>
 
       <div class="hero-panel">
-        <div class="panel-title">Workflow snapshot</div>
+        <div class="panel-title">Control room</div>
         <div class="mini-grid">
           <div>
             <span>Total cases</span>
@@ -58,6 +66,16 @@
             <span>Last refreshed</span>
             <strong>{{ lastRefreshed || 'Now' }}</strong>
           </div>
+        </div>
+
+        <div class="compact-note">
+          <div class="compact-note-title">What this shell proves</div>
+          <ul>
+            <li>Closure lifecycle from intake to approval</li>
+            <li>Searchable and paginated case visibility</li>
+            <li>Audit and event traceability</li>
+            <li>Idempotent workflow actions</li>
+          </ul>
         </div>
       </div>
     </section>
@@ -84,144 +102,128 @@
         <div class="stat-delta warn">Escalate to operations review</div>
       </article>
     </section>
+    </div>
 
-    <section class="workflow">
-      <div class="section-head">
-        <h2>Workflow stages</h2>
-        <div class="window-toggle">
-          <button type="button" [class.active]="activeWindow === '24H'" (click)="activeWindow = '24H'">24H</button>
-          <button type="button" [class.active]="activeWindow === '7D'" (click)="activeWindow = '7D'">7D</button>
-          <button type="button" [class.active]="activeWindow === '30D'" (click)="activeWindow = '30D'">30D</button>
-        </div>
+    <section class="panel queue-panel animated-panel" *ngIf="activeTab === 'closures'">
+      <div class="section-head compact">
+        <h2>Closure queue</h2>
+        <span class="chip">GET /search</span>
       </div>
 
-      <div class="stage-grid">
-        <article
-          class="stage-card"
-          *ngFor="let stage of stages; trackBy: trackByIndex"
-          [class.active]="stage.title === activeStage"
-          (click)="activeStage = stage.title">
-          <div class="stage-top">
-            <span>{{ stage.title }}</span>
-            <strong>{{ stage.count }}</strong>
+      <form class="filters" [formGroup]="searchForm">
+        <label>
+          <span>Loan account</span>
+          <input formControlName="loanAccountNumber" placeholder="LN-1001" />
+        </label>
+        <label>
+          <span>Borrower</span>
+          <input formControlName="borrowerName" placeholder="Borrower name" />
+        </label>
+        <label>
+          <span>Status</span>
+          <select formControlName="closureStatus">
+            <option value="">Any</option>
+            <option value="REQUESTED">Requested</option>
+            <option value="SETTLEMENT_CALCULATED">Settlement Calculated</option>
+            <option value="RECONCILIATION_PENDING">Reconciliation Pending</option>
+            <option value="RECONCILED">Reconciled</option>
+            <option value="APPROVED">Approved</option>
+            <option value="CLOSED">Closed</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="ON_HOLD">On Hold</option>
+          </select>
+        </label>
+        <label>
+          <span>Reconciliation</span>
+          <select formControlName="reconciliationStatus">
+            <option value="">Any</option>
+            <option value="PENDING">Pending</option>
+            <option value="MATCHED">Matched</option>
+            <option value="MISMATCHED">Mismatched</option>
+          </select>
+        </label>
+        <label>
+          <span>Min settlement</span>
+          <input type="number" formControlName="minSettlementAmount" min="0" step="0.01" placeholder="100000" />
+        </label>
+        <label>
+          <span>Max settlement</span>
+          <input type="number" formControlName="maxSettlementAmount" min="0" step="0.01" placeholder="150000" />
+        </label>
+      </form>
+
+      <div class="chip-row">
+        <button type="button" class="chip active" title="Run the current filters against the closure queue" (click)="runSearch()">Run search</button>
+        <button type="button" class="chip" title="Download the current filtered results as CSV" (click)="exportClosuresCsv()">Export search CSV</button>
+        <span class="chip">Page {{ (closurePage.number || 0) + 1 }} / {{ closurePage.totalPages || 1 }}</span>
+        <button type="button" class="chip" (click)="previousPage()" [attr.aria-disabled]="closurePage.first">Prev</button>
+        <button type="button" class="chip" (click)="nextPage()" [attr.aria-disabled]="closurePage.last">Next</button>
+      </div>
+
+        <div class="button-hint">
+          <span>Hero buttons refresh or download, row buttons open and act on one closure, selected-case actions run only after a case is selected.</span>
+        </div>
+
+      <div class="closure-table">
+        <div class="table-row table-head">
+          <div>Request</div>
+          <div>Borrower</div>
+          <div>Settlement</div>
+          <div>Status</div>
+          <div>Actions</div>
+        </div>
+
+          <div class="table-row" *ngFor="let closure of closures; trackBy: trackByIndex">
+          <div class="table-cell primary">
+            <strong>{{ closure.requestId }}</strong>
+            <span>{{ closure.loanAccountNumber }}</span>
           </div>
-          <p>{{ stage.note }}</p>
-          <div class="stage-bar" [class.done]="stage.state === 'done'" [class.risk]="stage.state === 'risk'"></div>
-        </article>
+          <div class="table-cell">
+            <strong>{{ closure.borrowerName }}</strong>
+            <span>{{ closure.closureReason }}</span>
+          </div>
+          <div class="table-cell numeric">
+            <strong>{{ closure.settlementAmount }}</strong>
+            <span>Principal {{ closure.outstandingPrincipal }}</span>
+          </div>
+          <div class="table-cell">
+            <span class="status" [class.risk]="statusTone(closure.closureStatus)">
+              {{ closure.closureStatus }}
+            </span>
+            <span class="status status-secondary">{{ closure.reconciliationStatus }}</span>
+          </div>
+          <div class="table-cell actions">
+            <button type="button" class="ghost" title="Load this closure into the action panel" (click)="selectClosure(closure)">Open</button>
+            <button
+              type="button"
+              class="ghost"
+              title="Calculate settlement for this closure"
+              [disabled]="loading && busyClosureId === closure.id && busyAction === 'settle'"
+              (click)="calculateSettlementFor(closure)">
+              {{ loading && busyClosureId === closure.id && busyAction === 'settle' ? 'Working...' : 'Settle' }}
+            </button>
+            <button
+              type="button"
+              class="ghost"
+              title="Move this closure into reconciliation"
+              [disabled]="loading && busyClosureId === closure.id && busyAction === 'recon'"
+              (click)="moveToReconciliationFor(closure)">
+              {{ loading && busyClosureId === closure.id && busyAction === 'recon' ? 'Working...' : 'Recon' }}
+            </button>
+            <button
+              type="button"
+              title="Advance the selected closure status"
+              [disabled]="loading && busyClosureId === closure.id && busyAction === 'advance'"
+              (click)="advanceStatusFor(closure)">
+              {{ loading && busyClosureId === closure.id && busyAction === 'advance' ? 'Working...' : 'Advance' }}
+            </button>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="grid">
-      <article class="panel">
-        <div class="section-head compact">
-          <h2>Search and filter</h2>
-          <span class="chip">GET /search</span>
-        </div>
-
-        <form class="filters" [formGroup]="searchForm">
-          <label>
-            <span>Loan account</span>
-            <input formControlName="loanAccountNumber" placeholder="LN-1001" />
-          </label>
-          <label>
-            <span>Borrower</span>
-            <input formControlName="borrowerName" placeholder="Asha Rao" />
-          </label>
-          <label>
-            <span>Status</span>
-            <select formControlName="closureStatus">
-              <option value="">Any</option>
-              <option value="REQUESTED">Requested</option>
-              <option value="SETTLEMENT_CALCULATED">Settlement Calculated</option>
-              <option value="RECONCILIATION_PENDING">Reconciliation Pending</option>
-              <option value="RECONCILED">Reconciled</option>
-              <option value="APPROVED">Approved</option>
-              <option value="CLOSED">Closed</option>
-              <option value="REJECTED">Rejected</option>
-              <option value="ON_HOLD">On Hold</option>
-            </select>
-          </label>
-          <label>
-            <span>Reconciliation</span>
-            <select formControlName="reconciliationStatus">
-              <option value="">Any</option>
-              <option value="PENDING">Pending</option>
-              <option value="MATCHED">Matched</option>
-              <option value="MISMATCHED">Mismatched</option>
-            </select>
-          </label>
-          <label>
-            <span>Min settlement</span>
-            <input formControlName="minSettlementAmount" placeholder="100000" />
-          </label>
-          <label>
-            <span>Max settlement</span>
-            <input formControlName="maxSettlementAmount" placeholder="150000" />
-          </label>
-        </form>
-
-        <div class="chip-row">
-          <button type="button" class="chip active" (click)="runSearch()">Run search</button>
-          <button type="button" class="chip" (click)="exportClosuresCsv()">Export search CSV</button>
-          <span class="chip">Page {{ (closurePage.number || 0) + 1 }} / {{ closurePage.totalPages || 1 }}</span>
-          <button type="button" class="chip" (click)="previousPage()" [attr.aria-disabled]="closurePage.first">Prev</button>
-          <button type="button" class="chip" (click)="nextPage()" [attr.aria-disabled]="closurePage.last">Next</button>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="section-head compact">
-          <h2>Create closure</h2>
-          <span class="chip">POST /closure-requests</span>
-        </div>
-
-        <form class="filters" [formGroup]="createForm">
-          <label>
-            <span>Request ID</span>
-            <input formControlName="requestId" />
-          </label>
-          <label>
-            <span>Loan account</span>
-            <input formControlName="loanAccountNumber" />
-          </label>
-          <label>
-            <span>Borrower name</span>
-            <input formControlName="borrowerName" />
-          </label>
-          <label>
-            <span>Reason</span>
-            <input formControlName="closureReason" />
-          </label>
-          <label>
-            <span>Outstanding principal</span>
-            <input formControlName="outstandingPrincipal" />
-          </label>
-          <label>
-            <span>Accrued interest</span>
-            <input formControlName="accruedInterest" />
-          </label>
-          <label>
-            <span>Penalty</span>
-            <input formControlName="penaltyAmount" />
-          </label>
-          <label>
-            <span>Processing fee</span>
-            <input formControlName="processingFee" />
-          </label>
-          <label class="full-span">
-            <span>Remarks</span>
-            <input formControlName="remarks" />
-          </label>
-        </form>
-
-        <div class="chip-row">
-          <button type="button" class="chip active" (click)="createClosure()">Create closure</button>
-        </div>
-      </article>
-    </section>
-
-    <section class="grid">
-      <article class="panel">
+    <section class="view-container">
+      <article class="panel animated-panel" *ngIf="activeTab === 'actions'">
         <div class="section-head compact">
           <h2>Selected closure actions</h2>
           <span class="chip">Workflow commands</span>
@@ -255,7 +257,7 @@
         </div>
 
         <ng-template #noSelection>
-          <p class="muted-copy">Select a closure from the result list to apply settlement, reconciliation, or status changes.</p>
+          <p class="muted-copy">Select a closure from the queue to apply settlement, reconciliation, or status changes.</p>
         </ng-template>
 
         <div class="workflow-actions">
@@ -268,7 +270,7 @@
               <span>Remarks</span>
               <input formControlName="remarks" />
             </label>
-            <button type="button" (click)="calculateSettlement()">Calculate settlement</button>
+            <button type="button" [disabled]="!selectedClosure" title="Apply settlement calculation to the selected closure" (click)="calculateSettlement()">Calculate settlement</button>
           </form>
 
           <form [formGroup]="reconcileForm" class="action-form">
@@ -281,8 +283,8 @@
               <input formControlName="remarks" />
             </label>
             <div class="button-row">
-              <button type="button" class="ghost" (click)="moveToReconciliation()">Start reconciliation</button>
-              <button type="button" (click)="reconcile()">Reconcile now</button>
+              <button type="button" class="ghost" [disabled]="!selectedClosure" title="Move the selected closure into reconciliation" (click)="moveToReconciliation()">Start reconciliation</button>
+              <button type="button" [disabled]="!selectedClosure" title="Apply the bank confirmation and reconcile the selected closure" (click)="reconcile()">Reconcile now</button>
             </div>
           </form>
 
@@ -303,12 +305,12 @@
               <span>Remarks</span>
               <input formControlName="remarks" />
             </label>
-            <button type="button" class="ghost" (click)="advanceStatus()">Advance status</button>
+            <button type="button" class="ghost" [disabled]="!selectedClosure" title="Advance the selected closure to the chosen status" (click)="advanceStatus()">Advance status</button>
           </form>
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel animated-panel" *ngIf="activeTab === 'audit'">
         <div class="section-head compact">
           <h2>Audit / event stream</h2>
           <span class="chip">GET /reports/events</span>
@@ -334,8 +336,8 @@
         </form>
 
         <div class="chip-row">
-          <button type="button" class="chip active" (click)="loadEvents()">Refresh events</button>
-          <button type="button" class="chip" (click)="exportEventsCsv()">Export events CSV</button>
+          <button type="button" class="chip active" title="Reload audit events from the backend" (click)="loadEvents()">Refresh events</button>
+          <button type="button" class="chip" title="Download the current audit stream as CSV" (click)="exportEventsCsv()">Export events CSV</button>
         </div>
 
         <div class="event-list">
@@ -349,97 +351,6 @@
           </div>
         </div>
       </article>
-    </section>
-
-    <section class="grid">
-      <article class="panel">
-        <div class="section-head compact">
-          <h2>Report endpoints</h2>
-          <span class="chip">GET /reports/*</span>
-        </div>
-
-        <div class="api-list">
-          <div class="api-card">
-            <div class="api-method">GET</div>
-            <div class="api-path">/api/v1/closure-requests/search</div>
-            <div class="api-note">Search and paginate closure cases</div>
-          </div>
-          <div class="api-card">
-            <div class="api-method">GET</div>
-            <div class="api-path">/api/v1/closure-requests/reports/summary.csv</div>
-            <div class="api-note">Download dashboard KPIs as CSV</div>
-          </div>
-          <div class="api-card">
-            <div class="api-method">GET</div>
-            <div class="api-path">/api/v1/closure-requests/reports/events.csv</div>
-            <div class="api-note">Download the audit/event stream as CSV</div>
-          </div>
-          <div class="api-card">
-            <div class="api-method">GET</div>
-            <div class="api-path">/api/v1/closure-requests/reports/closures.csv</div>
-            <div class="api-note">Export the current search result set as CSV</div>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel highlight">
-        <div class="section-head compact">
-          <h2>Interview story</h2>
-          <span class="chip">What this shell demonstrates</span>
-        </div>
-        <p>
-          The dashboard is intentionally opinionated: it proves the closure lifecycle, search/report surfaces,
-          audit visibility, idempotent workflow actions, and exportability you can defend in a backend interview.
-        </p>
-        <ul>
-          <li>Closure intake to approval pipeline</li>
-          <li>Searchable and paginated case visibility</li>
-          <li>Audit and event traceability</li>
-          <li>Idempotent workflow actions</li>
-        </ul>
-      </article>
-    </section>
-
-    <section class="results">
-      <div class="section-head">
-        <h2>Search results</h2>
-        <span class="chip">Live backend or mock fallback</span>
-      </div>
-
-      <div class="result-grid">
-        <article class="result-card" *ngFor="let closure of closures; trackBy: trackByIndex">
-          <div class="result-head">
-            <div>
-              <div class="result-title">{{ closure.loanAccountNumber }}</div>
-              <div class="result-sub">{{ closure.borrowerName }} | {{ closure.requestId }}</div>
-            </div>
-            <span class="status" [class.risk]="statusTone(closure.closureStatus)">
-              {{ closure.closureStatus }}
-            </span>
-          </div>
-
-          <p>{{ closure.closureReason }}</p>
-
-          <div class="result-metrics">
-            <div>
-              <span>Settlement</span>
-              <strong>{{ closure.settlementAmount }}</strong>
-            </div>
-            <div>
-              <span>Principal</span>
-              <strong>{{ closure.outstandingPrincipal }}</strong>
-            </div>
-            <div>
-              <span>Reconciliation</span>
-              <strong>{{ closure.reconciliationStatus }}</strong>
-            </div>
-          </div>
-
-          <div class="card-actions">
-            <button type="button" class="ghost" (click)="selectClosure(closure)">Select</button>
-          </div>
-        </article>
-      </div>
     </section>
   </main>
 </div>

@@ -38,7 +38,11 @@ type EventSearchForm = {
 })
 export class AppComponent implements OnInit {
   loading = false;
+  heroAction: 'refresh' | 'summary' | 'events' | null = null;
+  busyClosureId: number | null = null;
+  busyAction: string | null = null;
   lastRefreshed = '';
+  actionMessage = 'Ready';
   activeWindow = '7D';
   activeStage = 'Reconciliation Pending';
   pageSize = 6;
@@ -55,6 +59,12 @@ export class AppComponent implements OnInit {
     { title: 'Reconciliation Pending', count: 0, note: 'Bank confirmation in progress', state: 'active' },
     { title: 'Approved / Closed', count: 0, note: 'Matched and fully closed', state: 'done' }
   ];
+
+  activeTab: string = 'dashboard';
+
+  setTab(tab: string): void {
+    this.activeTab = tab;
+  }
 
   readonly searchForm: FormGroup;
   readonly createForm: FormGroup;
@@ -74,15 +84,15 @@ export class AppComponent implements OnInit {
     });
 
     this.createForm = this.fb.group({
-      requestId: ['REQ-2001'],
-      loanAccountNumber: ['LN-2001'],
-      borrowerName: ['Asha Rao'],
-      closureReason: ['Borrower requested loan closure'],
-      outstandingPrincipal: ['100000.00'],
-      accruedInterest: ['1200.00'],
-      penaltyAmount: ['300.00'],
-      processingFee: ['100.00'],
-      remarks: ['Created from dashboard']
+      requestId: [''],
+      loanAccountNumber: [''],
+      borrowerName: [''],
+      closureReason: [''],
+      outstandingPrincipal: [''],
+      accruedInterest: [''],
+      penaltyAmount: [''],
+      processingFee: [''],
+      remarks: ['']
     });
 
     this.settlementForm = this.fb.group({
@@ -114,6 +124,8 @@ export class AppComponent implements OnInit {
 
   refreshAll(): void {
     this.loading = true;
+    this.heroAction = 'refresh';
+    this.actionMessage = 'Refreshing dashboard data...';
     this.loadSummary();
     this.loadClosures(0);
     this.loadEvents();
@@ -124,6 +136,8 @@ export class AppComponent implements OnInit {
       this.summary = summary;
       this.syncStages(summary);
       this.lastRefreshed = new Date().toLocaleString();
+      this.actionMessage = `Dashboard refreshed at ${this.lastRefreshed}`;
+      this.heroAction = null;
     });
   }
 
@@ -181,6 +195,23 @@ export class AppComponent implements OnInit {
   selectClosure(closure: LoanClosureItem): void {
     this.selectedClosure = closure;
     this.patchActionForms(closure);
+    this.actionMessage = `Selected ${closure.requestId} for workflow actions`;
+  }
+
+  calculateSettlementFor(closure: LoanClosureItem): void {
+    this.runClosureAction(closure, 'settle', () => this.calculateSettlement());
+  }
+
+  moveToReconciliationFor(closure: LoanClosureItem): void {
+    this.runClosureAction(closure, 'recon', () => this.moveToReconciliation());
+  }
+
+  reconcileFor(closure: LoanClosureItem): void {
+    this.runClosureAction(closure, 'reconcile', () => this.reconcile());
+  }
+
+  advanceStatusFor(closure: LoanClosureItem): void {
+    this.runClosureAction(closure, 'advance', () => this.advanceStatus());
   }
 
   calculateSettlement(): void {
@@ -192,8 +223,10 @@ export class AppComponent implements OnInit {
     this.api.calculateSettlement(this.selectedClosure.id, request).pipe(finalize(() => (this.loading = false))).subscribe({
       next: (closure) => {
         this.selectedClosure = closure;
+        this.clearBusy();
         this.refreshAfterWrite();
-      }
+      },
+      error: () => this.clearBusy()
     });
   }
 
@@ -209,8 +242,10 @@ export class AppComponent implements OnInit {
     this.api.moveToReconciliation(this.selectedClosure.id, request).pipe(finalize(() => (this.loading = false))).subscribe({
       next: (closure) => {
         this.selectedClosure = closure;
+        this.clearBusy();
         this.refreshAfterWrite();
-      }
+      },
+      error: () => this.clearBusy()
     });
   }
 
@@ -223,8 +258,10 @@ export class AppComponent implements OnInit {
     this.api.reconcile(this.selectedClosure.id, request).pipe(finalize(() => (this.loading = false))).subscribe({
       next: (closure) => {
         this.selectedClosure = closure;
+        this.clearBusy();
         this.refreshAfterWrite();
-      }
+      },
+      error: () => this.clearBusy()
     });
   }
 
@@ -237,23 +274,30 @@ export class AppComponent implements OnInit {
     this.api.advanceStatus(this.selectedClosure.id, request).pipe(finalize(() => (this.loading = false))).subscribe({
       next: (closure) => {
         this.selectedClosure = closure;
+        this.clearBusy();
         this.refreshAfterWrite();
-      }
+      },
+      error: () => this.clearBusy()
     });
   }
 
   exportSummaryCsv(): void {
-    this.api.summaryCsv().subscribe((csv) => this.download('closure-summary.csv', csv));
+    this.heroAction = 'summary';
+    this.actionMessage = 'Preparing summary CSV...';
+    this.api.summaryCsv().subscribe((csv) => this.download('closure-summary.csv', csv, 'Summary CSV downloaded'));
   }
 
   exportEventsCsv(): void {
     const filters = this.normalizeEventFilters(this.eventForm.value);
-    this.api.eventsCsv(filters).subscribe((csv) => this.download('closure-events.csv', csv));
+    this.heroAction = 'events';
+    this.actionMessage = 'Preparing event CSV...';
+    this.api.eventsCsv(filters).subscribe((csv) => this.download('closure-events.csv', csv, 'Events CSV downloaded'));
   }
 
   exportClosuresCsv(): void {
     const filters = this.normalizeClosureFilters(this.searchForm.value);
-    this.api.closuresCsv(filters).subscribe((csv) => this.download('closure-search.csv', csv));
+    this.actionMessage = 'Preparing closure search CSV...';
+    this.api.closuresCsv(filters).subscribe((csv) => this.download('closure-search.csv', csv, 'Search CSV downloaded'));
   }
 
   closureTone(status: string): string {
@@ -278,6 +322,19 @@ export class AppComponent implements OnInit {
     this.loadSummary();
     this.loadClosures(0);
     this.loadEvents();
+  }
+
+  private clearBusy(): void {
+    this.busyClosureId = null;
+    this.busyAction = null;
+    this.actionMessage = 'Action completed';
+  }
+
+  private runClosureAction(closure: LoanClosureItem, action: string, callback: () => void): void {
+    this.selectClosure(closure);
+    this.busyClosureId = closure.id;
+    this.busyAction = action;
+    callback();
   }
 
   private patchActionForms(closure: LoanClosureItem): void {
@@ -348,7 +405,7 @@ export class AppComponent implements OnInit {
     ];
   }
 
-  private download(filename: string, text: string): void {
+  private download(filename: string, text: string, successMessage: string): void {
     const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -356,6 +413,10 @@ export class AppComponent implements OnInit {
     anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
+    this.busyClosureId = null;
+    this.busyAction = null;
+    this.heroAction = null;
+    this.actionMessage = successMessage;
   }
 
   private emptySummary(): LoanClosureSummary {
