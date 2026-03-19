@@ -1,15 +1,17 @@
 # LACR - Loan Account Closure and Reconciliation
 
-LACR is the loan account closure and reconciliation project scaffold. The target design is consistency-heavy and backend-focused:
+LACR is the loan account closure and reconciliation project. The design is consistency-heavy and backend-focused, with a dashboard shell for demo and interview walkthroughs.
 
-- closure request intake
-- settlement calculation
-- reconciliation workflow
-- idempotent request handling
-- audit trail
-- exception review
-- reporting
-- frontend dashboard shell
+## Scope
+
+- Closure request intake
+- Settlement calculation
+- Reconciliation workflow
+- Idempotent request handling
+- Audit trail
+- Exception review
+- Reporting
+- Frontend dashboard shell
 - CSV export endpoints for summary, events, and filtered search results
 
 ## Planned Stack
@@ -26,16 +28,16 @@ LACR is the loan account closure and reconciliation project scaffold. The target
 
 ## Current State
 
-The first implementation slice is in place:
+The main implementation slice is in place:
 
-- closure request intake
-- settlement calculation
-- reconciliation flow
-- status history
-- summary reporting
-- audit/event stream
-- idempotent workflow keys
-- persisted audit events and idempotency keys
+- Closure request intake
+- Settlement calculation
+- Reconciliation flow
+- Status history
+- Summary reporting
+- Audit/event stream
+- Idempotent workflow keys
+- Persisted audit events and idempotency keys
 - CSV exports for summary, events, and filtered search results
 
 ## API Docs
