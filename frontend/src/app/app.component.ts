@@ -53,7 +53,8 @@ export class AppComponent implements OnInit {
     { title: 'Requested', note: 'Fresh intake waiting for settlement calculation', state: 'open' as const },
     { title: 'Settlement Calculated', note: 'Charges and waivers finalized', state: 'active' as const },
     { title: 'Reconciliation Pending', note: 'Awaiting bank confirmation', state: 'active' as const },
-    { title: 'Approved / Closed', note: 'Operationally complete', state: 'done' as const }
+    { title: 'Approved', note: 'Ready for final account closure', state: 'done' as const },
+    { title: 'Closed', note: 'Operationally complete', state: 'done' as const }
   ];
 
   readonly statusActions: ActionOption[] = [
@@ -551,14 +552,27 @@ export class AppComponent implements OnInit {
 
   stageFilter(stageTitle: string): void {
     const normalized = stageTitle.toUpperCase().replace(/\s+\/\s+/g, '_').replace(/\s+/g, '_');
-    const closureStatus =
-      normalized === 'APPROVED_CLOSED'
-        ? ''
-        : normalized === 'REQUESTED'
-          ? 'REQUESTED'
-          : normalized === 'SETTLEMENT_CALCULATED'
-            ? 'SETTLEMENT_CALCULATED'
-            : 'RECONCILIATION_PENDING';
+    let closureStatus = '';
+    switch (normalized) {
+      case 'REQUESTED':
+        closureStatus = 'REQUESTED';
+        break;
+      case 'SETTLEMENT_CALCULATED':
+        closureStatus = 'SETTLEMENT_CALCULATED';
+        break;
+      case 'RECONCILIATION_PENDING':
+        closureStatus = 'RECONCILIATION_PENDING';
+        break;
+      case 'APPROVED':
+        closureStatus = 'APPROVED';
+        break;
+      case 'CLOSED':
+        closureStatus = 'CLOSED';
+        break;
+      default:
+        closureStatus = '';
+        break;
+    }
     this.searchForm.patchValue({ closureStatus });
     this.activeTab = 'closures';
     this.runSearch();
@@ -644,7 +658,8 @@ export class AppComponent implements OnInit {
       { ...this.stageCatalog[0], count: summary.pendingRequests },
       { ...this.stageCatalog[1], count: summary.settlementCalculatedRequests },
       { ...this.stageCatalog[2], count: summary.reconciliationPendingRequests },
-      { ...this.stageCatalog[3], count: summary.approvedRequests + summary.closedRequests }
+      { ...this.stageCatalog[3], count: summary.approvedRequests },
+      { ...this.stageCatalog[4], count: summary.closedRequests }
     ];
   }
 
