@@ -1,28 +1,24 @@
-# LACR - Loan Account Closure and Reconciliation
+# Project Scope
 
-This workspace is reserved for the resume project:
+## Product identity
+LACR is an internal operations application for loan-account closure processing. It is designed to reflect backend maturity more than presentation-heavy UI polish.
 
-- Loan Account Closure and Reconciliation
-
-Planned scope:
-
+## Functional scope
 - Closure request intake
-- Settlement calculation
-- Reconciliation status engine
-- Audit trail
-- Idempotent request handling
-- Reporting and exception review
-- Angular dashboard shell
+- Settlement calculation with adjustments
+- Reconciliation against bank-confirmed amount
+- Controlled status transitions
+- Audit event search
+- Summary and CSV reporting
+- Authenticated operator console
 
-Current slice:
-
-- Intake, settlement, reconciliation, status history, search, summary, and event-report APIs are implemented in the backend skeleton.
-- Audit events and idempotency keys now persist to database-backed tables with in-memory fallback for tests.
-- CSV export endpoints are implemented for summary, events, and filtered search results.
-- The Angular dashboard shell has been started.
-
-Notes:
-
-- This project will be built after the core lending workflow project.
-- It should be treated as a backend-heavy system with stronger workflow and consistency guarantees.
-- The frontend exists as a presentation shell first; API wiring comes after the backend stabilizes.
+## Engineering scope
+- Transactional workflow service
+- Redis-backed idempotent write commands with durable fallback
+- Mongo-backed audit/event storage with fallback persistence
+- Outbox-style workflow event recording with scheduled publish retries
+- Clearer service boundaries between workflow execution, audit recording, idempotency, and publishability
+- Operator attribution in audit and status history
+- Structured error contracts
+- Docker, Kubernetes, and Jenkins assets
+- Prometheus metrics and correlation-aware logging

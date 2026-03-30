@@ -11,10 +11,15 @@ import com.employee.loan_system.lacr.entity.LoanClosureCase;
 import com.employee.loan_system.lacr.entity.LoanClosureStatus;
 import com.employee.loan_system.lacr.entity.ReconciliationStatus;
 import com.employee.loan_system.lacr.repository.LoanClosureCaseRepository;
+import com.employee.loan_system.lacr.repository.LoanClosureOutboxEventRepository;
+import com.employee.loan_system.lacr.repository.FailedEventRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -35,12 +40,29 @@ class LoanClosureServiceTest {
     @Mock
     private LoanClosureCaseRepository closureCaseRepository;
 
+    @Mock
+    private LoanClosureOutboxEventRepository outboxEventRepository;
+
+    @Mock
+    private FailedEventRepository failedEventRepository;
+
     private final LoanClosureAuditStore auditStore = new LoanClosureAuditStore();
     private final LoanClosureIdempotencyStore idempotencyStore = new LoanClosureIdempotencyStore();
 
+    private LoanClosureService service() {
+        FailedEventService failedEventService = new FailedEventService(failedEventRepository);
+        LoanClosureOutboxService outboxService = new LoanClosureOutboxService(
+                outboxEventRepository,
+                failedEventService,
+                new ObjectMapper().findAndRegisterModules(),
+                3);
+        LoanClosureWorkflowRecorder workflowRecorder = new LoanClosureWorkflowRecorder(auditStore, outboxService);
+        return new LoanClosureService(closureCaseRepository, auditStore, workflowRecorder, idempotencyStore);
+    }
+
     @Test
     void createShouldBeIdempotentOnRequestId() {
-        LoanClosureService service = new LoanClosureService(closureCaseRepository, auditStore, idempotencyStore);
+        LoanClosureService service = service();
         when(closureCaseRepository.findByRequestId("REQ-001")).thenReturn(Optional.empty());
         when(closureCaseRepository.save(any(LoanClosureCase.class))).thenAnswer(invocation -> {
             LoanClosureCase closureCase = invocation.getArgument(0);
@@ -68,8 +90,38 @@ class LoanClosureServiceTest {
     }
 
     @Test
+    void createShouldCaptureAuthenticatedActor() {
+        LoanClosureService service = service();
+        when(closureCaseRepository.findByRequestId("REQ-OPS-001")).thenReturn(Optional.empty());
+        when(closureCaseRepository.save(any(LoanClosureCase.class))).thenAnswer(invocation -> {
+            LoanClosureCase closureCase = invocation.getArgument(0);
+            closureCase.setId(99L);
+            return closureCase;
+        });
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("closureops", "n/a", "ROLE_CLOSURE_OPS"));
+
+        CreateLoanClosureRequest request = new CreateLoanClosureRequest();
+        request.setRequestId("REQ-OPS-001");
+        request.setLoanAccountNumber("LN-2001");
+        request.setBorrowerName("Mina Joseph");
+        request.setClosureReason("Balance transfer");
+        request.setOutstandingPrincipal(new BigDecimal("250000.00"));
+        request.setAccruedInterest(new BigDecimal("5000.00"));
+        request.setPenaltyAmount(new BigDecimal("1000.00"));
+        request.setProcessingFee(new BigDecimal("250.00"));
+
+        var response = service.createClosureRequest(request);
+        var createdEvents = service.searchEvents("REQ-OPS-001", null, LoanClosureEventType.CREATED, null);
+
+        assertThat(response.createdBy()).isEqualTo("closureops");
+        assertThat(response.statusHistory()).extracting("changedBy").contains("closureops");
+        assertThat(createdEvents).hasSize(1);
+        assertThat(createdEvents.get(0).actor()).isEqualTo("closureops");
+    }
+
+    @Test
     void calculateShouldApplyAdjustment() {
-        LoanClosureService service = new LoanClosureService(closureCaseRepository, auditStore, idempotencyStore);
+        LoanClosureService service = service();
         LoanClosureCase closureCase = existingCase();
         closureCase.setClosureStatus(LoanClosureStatus.REQUESTED);
         when(closureCaseRepository.findById(1L)).thenReturn(Optional.of(closureCase));
@@ -87,7 +139,7 @@ class LoanClosureServiceTest {
 
     @Test
     void reconcileShouldMarkMismatchAsOnHold() {
-        LoanClosureService service = new LoanClosureService(closureCaseRepository, auditStore, idempotencyStore);
+        LoanClosureService service = service();
         LoanClosureCase closureCase = existingCase();
         closureCase.setClosureStatus(LoanClosureStatus.RECONCILIATION_PENDING);
         closureCase.setSettlementAmount(new BigDecimal("101600.00"));
@@ -106,7 +158,7 @@ class LoanClosureServiceTest {
 
     @Test
     void approveShouldRejectWithoutMatchedReconciliation() {
-        LoanClosureService service = new LoanClosureService(closureCaseRepository, auditStore, idempotencyStore);
+        LoanClosureService service = service();
         LoanClosureCase closureCase = existingCase();
         closureCase.setClosureStatus(LoanClosureStatus.RECONCILED);
         closureCase.setReconciliationStatus(ReconciliationStatus.MISMATCHED);
@@ -123,7 +175,7 @@ class LoanClosureServiceTest {
 
     @Test
     void searchShouldFilterClosures() {
-        LoanClosureService service = new LoanClosureService(closureCaseRepository, auditStore, idempotencyStore);
+        LoanClosureService service = service();
         when(closureCaseRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(new PageImpl<>(List.of(existingCase())));
 
         var page = service.search("LN-1001", "Asha", LoanClosureStatus.REQUESTED, ReconciliationStatus.PENDING, null, null, PageRequest.of(0, 20));
@@ -147,5 +199,10 @@ class LoanClosureServiceTest {
         closureCase.setSettlementAmount(new BigDecimal("101600.00"));
         closureCase.setReconciliationStatus(ReconciliationStatus.PENDING);
         return closureCase;
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 }

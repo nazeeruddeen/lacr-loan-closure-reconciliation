@@ -4,29 +4,43 @@ import com.employee.loan_system.lacr.dto.LoanClosureResponse;
 import com.employee.loan_system.lacr.entity.LoanClosureIdempotencyEntry;
 import com.employee.loan_system.lacr.repository.LoanClosureIdempotencyRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class LoanClosureIdempotencyStore {
 
+    private static final Logger log = LoggerFactory.getLogger(LoanClosureIdempotencyStore.class);
     private static final Duration DEFAULT_TTL = Duration.ofMinutes(30);
+    private static final String REDIS_KEY_PREFIX = "lacr:idempotency:";
 
     private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
+    private final LoanClosureIdempotencyRepository idempotencyRepository;
+    private final ObjectMapper objectMapper;
+    private final StringRedisTemplate redisTemplate;
 
-    @Autowired(required = false)
-    private LoanClosureIdempotencyRepository idempotencyRepository;
+    public LoanClosureIdempotencyStore() {
+        this(null, null, null);
+    }
 
-    @Autowired(required = false)
-    private ObjectMapper objectMapper;
+    public LoanClosureIdempotencyStore(
+            LoanClosureIdempotencyRepository idempotencyRepository,
+            ObjectMapper objectMapper,
+            StringRedisTemplate redisTemplate) {
+        this.idempotencyRepository = idempotencyRepository;
+        this.objectMapper = objectMapper;
+        this.redisTemplate = redisTemplate;
+    }
 
     public Optional<Object> get(String key) {
         CacheEntry entry = cache.get(key);
@@ -36,6 +50,12 @@ public class LoanClosureIdempotencyStore {
             } else {
                 return Optional.of(entry.value());
             }
+        }
+
+        Optional<Object> redisValue = getFromRedis(key);
+        if (redisValue.isPresent()) {
+            cache.put(key, new CacheEntry(redisValue.get(), Instant.now().plus(DEFAULT_TTL)));
+            return redisValue;
         }
 
         if (idempotencyRepository == null) {
@@ -63,6 +83,7 @@ public class LoanClosureIdempotencyStore {
     public void put(String key, Object value) {
         CacheEntry cacheEntry = new CacheEntry(value, Instant.now().plus(DEFAULT_TTL));
         cache.put(key, cacheEntry);
+        putInRedis(key, value);
         if (idempotencyRepository != null) {
             LoanClosureIdempotencyEntry entry = idempotencyRepository.findByIdempotencyKey(key)
                     .orElseGet(LoanClosureIdempotencyEntry::new);
@@ -71,6 +92,38 @@ public class LoanClosureIdempotencyStore {
             entry.setPayloadJson(serialize(value));
             entry.setExpiresAt(LocalDateTime.now().plus(DEFAULT_TTL));
             idempotencyRepository.save(entry);
+        }
+    }
+
+    private Optional<Object> getFromRedis(String key) {
+        if (redisTemplate == null) {
+            return Optional.empty();
+        }
+
+        try {
+            ValueOperations<String, String> valueOperations = redisTemplate.opsForValue();
+            String cachedJson = valueOperations.get(redisKey(key));
+            if (cachedJson == null || cachedJson.isBlank()) {
+                return Optional.empty();
+            }
+            RedisIdempotencyValue value = mapper().readValue(cachedJson, RedisIdempotencyValue.class);
+            return Optional.ofNullable(deserialize(value.responseType(), value.payloadJson()));
+        } catch (Exception ex) {
+            log.warn("Redis idempotency read failed for key {}. Falling back to persistent store.", key, ex);
+            return Optional.empty();
+        }
+    }
+
+    private void putInRedis(String key, Object value) {
+        if (redisTemplate == null) {
+            return;
+        }
+
+        try {
+            RedisIdempotencyValue payload = new RedisIdempotencyValue(value.getClass().getName(), serialize(value));
+            redisTemplate.opsForValue().set(redisKey(key), mapper().writeValueAsString(payload), DEFAULT_TTL);
+        } catch (Exception ex) {
+            log.warn("Redis idempotency write failed for key {}. Continuing with durable fallback.", key, ex);
         }
     }
 
@@ -101,6 +154,13 @@ public class LoanClosureIdempotencyStore {
         return new ObjectMapper().findAndRegisterModules();
     }
 
+    private String redisKey(String key) {
+        return REDIS_KEY_PREFIX + key;
+    }
+
     private record CacheEntry(Object value, Instant expiresAt) {
+    }
+
+    private record RedisIdempotencyValue(String responseType, String payloadJson) {
     }
 }

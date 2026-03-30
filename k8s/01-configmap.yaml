@@ -6,7 +6,9 @@ metadata:
 data:
   SERVER_PORT: "8012"
   SPRING_DATASOURCE_URL: jdbc:mysql://lacr-mysql:3306/lacr_loan_closure_reconciliation?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+  SPRING_DATA_REDIS_HOST: lacr-redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_DATA_MONGODB_URI: mongodb://lacr-mongo:27017/lacr_audit
   SPRING_JPA_SHOW_SQL: "false"
   SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 50MB
   SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 50MB
-

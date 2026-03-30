@@ -1,20 +1,21 @@
-# LACR Frontend Shell
+# LACR Frontend
 
-Minimal Angular dashboard shell for the Loan Account Closure and Reconciliation project.
+Angular operator console for the Loan Account Closure and Reconciliation workflow.
 
-## What it covers
-- Executive summary cards
-- Closure workflow stages
-- Search and filter panel
-- Create / settlement / reconciliation / status actions
-- Event/audit stream
-- Report shortcuts
-- Search pagination
-- Live API integration with mock fallback when the backend is offline
+## What the frontend now does
+- Authenticates operators with HTTP Basic credentials against the backend
+- Loads live summary cards and closure queue data
+- Creates closure requests
+- Calculates settlement adjustments
+- Starts reconciliation and applies bank-confirmed reconciliation
+- Advances valid workflow statuses only when the backend allows them
+- Triggers workflow actions that are protected by Redis-backed idempotency on the backend
+- Displays status history and audit events sourced from the backend audit store
+- Exports summary, event, and queue CSVs
 
 ## Configuration
-- `src/environments/environment.ts` points to `http://localhost:8012/api/v1/closure-requests`
-- `src/environments/environment.prod.ts` points to `/api/v1/closure-requests`
+- `src/environments/environment.ts` points to `http://localhost:8012`
+- `src/environments/environment.prod.ts` points to relative API paths for reverse-proxy deployment
 
 ## Run
 ```bash
@@ -22,11 +23,17 @@ npm install
 npm start
 ```
 
-Default dev-server port:
-
+Dev server port:
 - `4500`
 
 ## Build
 ```bash
 npm run build
 ```
+
+## Operator sign-in
+Use one of the backend operator accounts from the root README, for example:
+- `closureops / Closure@123`
+- `reconlead / Recon@123`
+- `auditor / Auditor@123`
+- `opsadmin / Ops@123`

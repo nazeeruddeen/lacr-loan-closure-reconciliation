@@ -1,319 +1,386 @@
-<div class="app-layout">
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-mark">L</div>
-      <div>
-        <div class="brand-title">LACR</div>
-        <div class="brand-subtitle">closure + reconciliation</div>
-      </div>
+<div class="auth-shell" *ngIf="!authenticated && !initializing; else operatorConsole">
+  <section class="auth-panel animated-panel">
+    <div class="eyebrow">LACR Operator Console</div>
+    <h1>Sign in to manage closure settlement, reconciliation, and audit review.</h1>
+    <p>
+      This console is meant for internal operations teams. Use one of the seeded operator accounts below or sign in with the
+      credentials configured in the backend security configuration.
+    </p>
+
+    <form class="auth-form" [formGroup]="loginForm">
+      <label>
+        <span>Username</span>
+        <input formControlName="username" autocomplete="username" />
+      </label>
+      <label>
+        <span>Password</span>
+        <input type="password" formControlName="password" autocomplete="current-password" />
+      </label>
+      <button type="button" [disabled]="loginBusy" (click)="login()">
+        {{ loginBusy ? 'Signing in...' : 'Sign in' }}
+      </button>
+    </form>
+
+    <div class="hero-status" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+    <div class="credential-grid">
+      <button
+        type="button"
+        class="credential-card"
+        *ngFor="let credential of quickCredentials; trackBy: trackByIndex"
+        (click)="useQuickCredentials(credential.username, credential.password)">
+        <strong>{{ credential.label }}</strong>
+        <span>{{ credential.username }}</span>
+        <small>{{ credential.password }}</small>
+      </button>
     </div>
+  </section>
+</div>
 
-    <nav class="sidebar__nav">
-      <button class="nav-item" [class.active]="activeTab === 'dashboard'" (click)="setTab('dashboard')">Dashboard</button>
-      <button class="nav-item" [class.active]="activeTab === 'closures'" (click)="setTab('closures')">Closures Queue</button>
-      <button class="nav-item" [class.active]="activeTab === 'actions'" (click)="setTab('actions')">Selected Actions</button>
-      <button class="nav-item" [class.active]="activeTab === 'audit'" (click)="setTab('audit')">Audit Stream</button>
-    </nav>
-  </aside>
-
-  <main class="main-content">
-    <div class="animated-panel" *ngIf="activeTab === 'dashboard'">
-      <section class="hero">
-      <div class="hero-copy">
-        <div class="eyebrow">Loan Account Closure and Reconciliation</div>
-        <h1>Operations dashboard for settlement accuracy, auditability, and workflow control.</h1>
-        <p>
-          Track closure requests, reconcile bank-confirmed values, and inspect the audit stream from one control room.
-        </p>
-
-        <div class="hero-actions">
-          <button type="button" [disabled]="heroAction === 'refresh'" title="Reload the summary cards and queue" (click)="refreshAll()">
-            {{ heroAction === 'refresh' ? 'Refreshing...' : 'Refresh summary' }}
-          </button>
-          <button type="button" class="ghost" [disabled]="heroAction === 'summary'" title="Download summary KPIs as CSV" (click)="exportSummaryCsv()">
-            {{ heroAction === 'summary' ? 'Downloading...' : 'Export summary' }}
-          </button>
-          <button type="button" class="ghost" [disabled]="heroAction === 'events'" title="Download audit events as CSV" (click)="exportEventsCsv()">
-            {{ heroAction === 'events' ? 'Downloading...' : 'Export events' }}
-          </button>
-        </div>
-
-        <div class="hero-status" aria-live="polite">{{ actionMessage }}</div>
-
-        <div class="meta-row">
-          <span class="chip chip-mini">Redis-style idempotency</span>
-          <span class="chip chip-mini">Audit event store</span>
-          <span class="chip chip-mini">CSV exports</span>
-        </div>
-      </div>
-
-      <div class="hero-panel">
-        <div class="panel-title">Control room</div>
-        <div class="mini-grid">
-          <div>
-            <span>Total cases</span>
-            <strong>{{ summary.totalRequests }}</strong>
-          </div>
-          <div>
-            <span>Pending recon</span>
-            <strong>{{ summary.reconciliationPendingRequests }}</strong>
-          </div>
-          <div>
-            <span>Matched</span>
-            <strong>{{ summary.matchedReconciliations }}</strong>
-          </div>
-          <div>
-            <span>Last refreshed</span>
-            <strong>{{ lastRefreshed || 'Now' }}</strong>
-          </div>
-        </div>
-
-        <div class="compact-note">
-          <div class="compact-note-title">What this shell proves</div>
-          <ul>
-            <li>Closure lifecycle from intake to approval</li>
-            <li>Searchable and paginated case visibility</li>
-            <li>Audit and event traceability</li>
-            <li>Idempotent workflow actions</li>
-          </ul>
-        </div>
-      </div>
+<ng-template #operatorConsole>
+  <div class="auth-shell auth-shell--loading" *ngIf="initializing">
+    <section class="auth-panel animated-panel">
+      <div class="eyebrow">Restoring session</div>
+      <h1>Loading operator dashboard...</h1>
+      <p>{{ actionMessage }}</p>
     </section>
+  </div>
 
-    <section class="stats">
-      <article class="stat-card">
-        <div class="stat-label">Closure cases</div>
-        <div class="stat-value">{{ summary.totalRequests }}</div>
-        <div class="stat-delta">Requests across intake, settlement, and reconciliation</div>
-      </article>
-      <article class="stat-card">
-        <div class="stat-label">Pending reconciliation</div>
-        <div class="stat-value">{{ summary.reconciliationPendingRequests }}</div>
-        <div class="stat-delta">Awaiting bank confirmation</div>
-      </article>
-      <article class="stat-card">
-        <div class="stat-label">Matched closures</div>
-        <div class="stat-value">{{ summary.matchedReconciliations }}</div>
-        <div class="stat-delta">Ready for approval and closure</div>
-      </article>
-      <article class="stat-card">
-        <div class="stat-label">On hold / mismatched</div>
-        <div class="stat-value">{{ summary.onHoldRequests }}</div>
-        <div class="stat-delta warn">Escalate to operations review</div>
-      </article>
-    </section>
-    </div>
-
-    <section class="panel queue-panel animated-panel" *ngIf="activeTab === 'closures'">
-      <div class="section-head compact">
-        <h2>Closure queue</h2>
-        <span class="chip">GET /search</span>
+  <div class="app-layout" *ngIf="authenticated && !initializing">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">L</div>
+        <div>
+          <div class="brand-title">LACR</div>
+          <div class="brand-subtitle">closure operations</div>
+        </div>
       </div>
 
-      <form class="filters" [formGroup]="searchForm">
-        <label>
-          <span>Loan account</span>
-          <input formControlName="loanAccountNumber" placeholder="LN-1001" />
-        </label>
-        <label>
-          <span>Borrower</span>
-          <input formControlName="borrowerName" placeholder="Borrower name" />
-        </label>
-        <label>
-          <span>Status</span>
-          <select formControlName="closureStatus">
-            <option value="">Any</option>
-            <option value="REQUESTED">Requested</option>
-            <option value="SETTLEMENT_CALCULATED">Settlement Calculated</option>
-            <option value="RECONCILIATION_PENDING">Reconciliation Pending</option>
-            <option value="RECONCILED">Reconciled</option>
-            <option value="APPROVED">Approved</option>
-            <option value="CLOSED">Closed</option>
-            <option value="REJECTED">Rejected</option>
-            <option value="ON_HOLD">On Hold</option>
-          </select>
-        </label>
-        <label>
-          <span>Reconciliation</span>
-          <select formControlName="reconciliationStatus">
-            <option value="">Any</option>
-            <option value="PENDING">Pending</option>
-            <option value="MATCHED">Matched</option>
-            <option value="MISMATCHED">Mismatched</option>
-          </select>
-        </label>
-        <label>
-          <span>Min settlement</span>
-          <input type="number" formControlName="minSettlementAmount" min="0" step="0.01" placeholder="100000" />
-        </label>
-        <label>
-          <span>Max settlement</span>
-          <input type="number" formControlName="maxSettlementAmount" min="0" step="0.01" placeholder="150000" />
-        </label>
-      </form>
-
-      <div class="chip-row">
-        <button type="button" class="chip active" title="Run the current filters against the closure queue" (click)="runSearch()">Run search</button>
-        <button type="button" class="chip" title="Download the current filtered results as CSV" (click)="exportClosuresCsv()">Export search CSV</button>
-        <span class="chip">Page {{ (closurePage.number || 0) + 1 }} / {{ closurePage.totalPages || 1 }}</span>
-        <button type="button" class="chip" (click)="previousPage()" [attr.aria-disabled]="closurePage.first">Prev</button>
-        <button type="button" class="chip" (click)="nextPage()" [attr.aria-disabled]="closurePage.last">Next</button>
+      <div class="operator-card" *ngIf="operatorProfile">
+        <div class="operator-label">Signed in as</div>
+        <strong>{{ operatorProfile.displayName }}</strong>
+        <span>{{ operatorProfile.username }}</span>
+        <div class="operator-roles">
+          <span class="chip chip-mini" *ngFor="let role of operatorProfile.roles; trackBy: trackByIndex">{{ role }}</span>
+        </div>
       </div>
 
-        <div class="button-hint">
-          <span>Hero buttons refresh or download, row buttons open and act on one closure, selected-case actions run only after a case is selected.</span>
+      <nav class="sidebar__nav">
+        <button class="nav-item" [class.active]="activeTab === 'dashboard'" (click)="setTab('dashboard')">Dashboard</button>
+        <button class="nav-item" [class.active]="activeTab === 'closures'" (click)="setTab('closures')">Closures Queue</button>
+        <button class="nav-item" [class.active]="activeTab === 'actions'" (click)="setTab('actions')">Selected Actions</button>
+        <button class="nav-item" [class.active]="activeTab === 'audit'" (click)="setTab('audit')">Audit Stream</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button type="button" class="ghost" (click)="logout()">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="hero-status hero-status--error" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+      <section class="hero animated-panel" *ngIf="activeTab === 'dashboard'">
+        <div class="hero-copy">
+          <div class="eyebrow">Loan Account Closure and Reconciliation</div>
+          <h1>Control settlement accuracy, reconciliation quality, and audit visibility from one console.</h1>
+          <p>
+            Run queue operations, inspect reconciliation mismatches, and export operational data without leaving the closure desk.
+          </p>
+
+          <div class="hero-actions">
+            <button type="button" [disabled]="heroAction === 'refresh' || loading" (click)="refreshAll()">
+              {{ heroAction === 'refresh' ? 'Refreshing...' : 'Refresh dashboard' }}
+            </button>
+            <button type="button" class="ghost" [disabled]="heroAction === 'summary'" (click)="exportSummaryCsv()">
+              {{ heroAction === 'summary' ? 'Downloading...' : 'Export summary' }}
+            </button>
+            <button type="button" class="ghost" [disabled]="heroAction === 'events'" (click)="exportEventsCsv()">
+              {{ heroAction === 'events' ? 'Downloading...' : 'Export events' }}
+            </button>
+            <button type="button" class="ghost" [disabled]="heroAction === 'closures'" (click)="exportClosuresCsv()">
+              {{ heroAction === 'closures' ? 'Downloading...' : 'Export queue' }}
+            </button>
+          </div>
+
+          <div class="hero-status">{{ actionMessage }}</div>
         </div>
 
-      <div class="closure-table">
-        <div class="table-row table-head">
-          <div>Request</div>
-          <div>Borrower</div>
-          <div>Settlement</div>
-          <div>Status</div>
-          <div>Actions</div>
+        <div class="hero-panel">
+          <div class="panel-title">Current control room</div>
+          <div class="mini-grid">
+            <div>
+              <span>Total requests</span>
+              <strong>{{ summary.totalRequests }}</strong>
+            </div>
+            <div>
+              <span>Pending reconciliation</span>
+              <strong>{{ summary.reconciliationPendingRequests }}</strong>
+            </div>
+            <div>
+              <span>Mismatched</span>
+              <strong>{{ summary.mismatchedReconciliations }}</strong>
+            </div>
+            <div>
+              <span>Last refreshed</span>
+              <strong>{{ lastRefreshed || 'Waiting for first sync' }}</strong>
+            </div>
+          </div>
         </div>
+      </section>
+
+      <section class="stats animated-panel" *ngIf="activeTab === 'dashboard'">
+        <article class="stat-card" *ngFor="let stage of stages; trackBy: trackByIndex" (click)="stageFilter(stage.title)">
+          <div class="stat-label">{{ stage.title }}</div>
+          <div class="stat-value">{{ stage.count }}</div>
+          <div class="stat-delta" [class.warn]="stage.state === 'risk'">{{ stage.note }}</div>
+        </article>
+      </section>
+
+      <section class="panel queue-panel animated-panel" *ngIf="activeTab === 'closures'">
+        <div class="section-head compact">
+          <h2>Closure queue</h2>
+          <span class="chip">Live search</span>
+        </div>
+
+        <form class="filters" [formGroup]="searchForm">
+          <label>
+            <span>Loan account</span>
+            <input formControlName="loanAccountNumber" placeholder="LN-1001" />
+          </label>
+          <label>
+            <span>Borrower</span>
+            <input formControlName="borrowerName" placeholder="Borrower name" />
+          </label>
+          <label>
+            <span>Closure status</span>
+            <select formControlName="closureStatus">
+              <option value="">Any</option>
+              <option value="REQUESTED">Requested</option>
+              <option value="SETTLEMENT_CALCULATED">Settlement Calculated</option>
+              <option value="RECONCILIATION_PENDING">Reconciliation Pending</option>
+              <option value="RECONCILED">Reconciled</option>
+              <option value="APPROVED">Approved</option>
+              <option value="CLOSED">Closed</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="ON_HOLD">On Hold</option>
+            </select>
+          </label>
+          <label>
+            <span>Reconciliation status</span>
+            <select formControlName="reconciliationStatus">
+              <option value="">Any</option>
+              <option value="PENDING">Pending</option>
+              <option value="MATCHED">Matched</option>
+              <option value="MISMATCHED">Mismatched</option>
+            </select>
+          </label>
+          <label>
+            <span>Min settlement</span>
+            <input type="number" formControlName="minSettlementAmount" min="0" step="0.01" placeholder="100000" />
+          </label>
+          <label>
+            <span>Max settlement</span>
+            <input type="number" formControlName="maxSettlementAmount" min="0" step="0.01" placeholder="150000" />
+          </label>
+        </form>
+
+        <div class="chip-row">
+          <button type="button" class="chip active" (click)="runSearch()">Run search</button>
+          <button type="button" class="chip" (click)="exportClosuresCsv()">Export CSV</button>
+          <span class="chip">Page {{ (closurePage.number || 0) + 1 }} / {{ closurePage.totalPages || 1 }}</span>
+          <button type="button" class="chip" [disabled]="closurePage.first" (click)="previousPage()">Prev</button>
+          <button type="button" class="chip" [disabled]="closurePage.last" (click)="nextPage()">Next</button>
+        </div>
+
+        <div class="closure-table" *ngIf="closures.length; else emptyClosures">
+          <div class="table-row table-head">
+            <div>Request</div>
+            <div>Borrower</div>
+            <div>Settlement</div>
+            <div>Status</div>
+            <div>Actions</div>
+          </div>
 
           <div class="table-row" *ngFor="let closure of closures; trackBy: trackByIndex">
-          <div class="table-cell primary">
-            <strong>{{ closure.requestId }}</strong>
-            <span>{{ closure.loanAccountNumber }}</span>
-          </div>
-          <div class="table-cell">
-            <strong>{{ closure.borrowerName }}</strong>
-            <span>{{ closure.closureReason }}</span>
-          </div>
-          <div class="table-cell numeric">
-            <strong>{{ closure.settlementAmount }}</strong>
-            <span>Principal {{ closure.outstandingPrincipal }}</span>
-          </div>
-          <div class="table-cell">
-            <span class="status" [class.risk]="statusTone(closure.closureStatus)">
-              {{ closure.closureStatus }}
-            </span>
-            <span class="status status-secondary">{{ closure.reconciliationStatus }}</span>
-          </div>
-          <div class="table-cell actions">
-            <button type="button" class="ghost" title="Load this closure into the action panel" (click)="selectClosure(closure)">Open</button>
-            <button
-              type="button"
-              class="ghost"
-              title="Calculate settlement for this closure"
-              [disabled]="loading && busyClosureId === closure.id && busyAction === 'settle'"
-              (click)="calculateSettlementFor(closure)">
-              {{ loading && busyClosureId === closure.id && busyAction === 'settle' ? 'Working...' : 'Settle' }}
-            </button>
-            <button
-              type="button"
-              class="ghost"
-              title="Move this closure into reconciliation"
-              [disabled]="loading && busyClosureId === closure.id && busyAction === 'recon'"
-              (click)="moveToReconciliationFor(closure)">
-              {{ loading && busyClosureId === closure.id && busyAction === 'recon' ? 'Working...' : 'Recon' }}
-            </button>
-            <button
-              type="button"
-              title="Advance the selected closure status"
-              [disabled]="loading && busyClosureId === closure.id && busyAction === 'advance'"
-              (click)="advanceStatusFor(closure)">
-              {{ loading && busyClosureId === closure.id && busyAction === 'advance' ? 'Working...' : 'Advance' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="view-container">
-      <article class="panel animated-panel" *ngIf="activeTab === 'actions'">
-        <div class="section-head compact">
-          <h2>Selected closure actions</h2>
-          <span class="chip">Workflow commands</span>
-        </div>
-
-        <div class="selected-box" *ngIf="selectedClosure; else noSelection">
-          <div class="result-head">
-            <div>
-              <div class="result-title">{{ selectedClosure.loanAccountNumber }}</div>
-              <div class="result-sub">{{ selectedClosure.borrowerName }} | {{ selectedClosure.requestId }}</div>
+            <div class="table-cell primary">
+              <strong>{{ closure.requestId }}</strong>
+              <span>{{ closure.loanAccountNumber }}</span>
             </div>
-            <span class="status" [class.risk]="statusTone(selectedClosure.closureStatus)">
-              {{ selectedClosure.closureStatus }}
-            </span>
-          </div>
-
-          <div class="result-metrics">
-            <div>
-              <span>Settlement</span>
-              <strong>{{ selectedClosure.settlementAmount }}</strong>
+            <div class="table-cell">
+              <strong>{{ closure.borrowerName }}</strong>
+              <span>{{ closure.closureReason }}</span>
             </div>
-            <div>
-              <span>Difference</span>
-              <strong>{{ selectedClosure.settlementDifference || '0.00' }}</strong>
+            <div class="table-cell numeric">
+              <strong>{{ closure.settlementAmount }}</strong>
+              <span>Difference {{ closure.settlementDifference || '0.00' }}</span>
             </div>
-            <div>
-              <span>Reconciliation</span>
-              <strong>{{ selectedClosure.reconciliationStatus }}</strong>
+            <div class="table-cell">
+              <span class="status" [class.risk]="statusTone(closure.closureStatus) === 'risk'">
+                {{ closure.closureStatus }}
+              </span>
+              <span class="status status-secondary">{{ closure.reconciliationStatus }}</span>
+            </div>
+            <div class="table-cell actions">
+              <button type="button" class="ghost" (click)="selectClosure(closure); setTab('actions')">Open</button>
+              <button
+                type="button"
+                class="ghost"
+                [disabled]="!canCalculateSettlement(closure) || (loading && busyClosureId === closure.id && busyAction === 'settle')"
+                (click)="calculateSettlementFor(closure)">
+                {{ loading && busyClosureId === closure.id && busyAction === 'settle' ? 'Working...' : 'Settle' }}
+              </button>
+              <button
+                type="button"
+                class="ghost"
+                [disabled]="!canStartReconciliation(closure) || (loading && busyClosureId === closure.id && busyAction === 'recon-start')"
+                (click)="moveToReconciliationFor(closure)">
+                {{ loading && busyClosureId === closure.id && busyAction === 'recon-start' ? 'Working...' : 'Start recon' }}
+              </button>
+              <button
+                type="button"
+                class="ghost"
+                [disabled]="!canReconcile(closure) || (loading && busyClosureId === closure.id && busyAction === 'reconcile')"
+                (click)="reconcileFor(closure)">
+                {{ loading && busyClosureId === closure.id && busyAction === 'reconcile' ? 'Working...' : 'Reconcile' }}
+              </button>
+              <button
+                type="button"
+                [disabled]="!canAdvance(closure) || (loading && busyClosureId === closure.id && busyAction === 'advance')"
+                (click)="advanceStatusFor(closure)">
+                {{ loading && busyClosureId === closure.id && busyAction === 'advance' ? 'Working...' : recommendedActionLabel(closure) }}
+              </button>
             </div>
           </div>
         </div>
 
-        <ng-template #noSelection>
-          <p class="muted-copy">Select a closure from the queue to apply settlement, reconciliation, or status changes.</p>
+        <ng-template #emptyClosures>
+          <div class="empty-state">No closure requests matched the current search filters.</div>
         </ng-template>
+      </section>
 
-        <div class="workflow-actions">
-          <form [formGroup]="settlementForm" class="action-form">
-            <label>
-              <span>Adjustment amount</span>
-              <input formControlName="adjustmentAmount" />
-            </label>
-            <label>
-              <span>Remarks</span>
-              <input formControlName="remarks" />
-            </label>
-            <button type="button" [disabled]="!selectedClosure" title="Apply settlement calculation to the selected closure" (click)="calculateSettlement()">Calculate settlement</button>
-          </form>
+      <section class="view-container" *ngIf="activeTab === 'actions'">
+        <article class="panel animated-panel action-layout">
+          <div class="section-head compact">
+            <h2>Selected closure actions</h2>
+            <span class="chip">Workflow controls</span>
+          </div>
 
-          <form [formGroup]="reconcileForm" class="action-form">
-            <label>
-              <span>Bank confirmed amount</span>
-              <input formControlName="bankConfirmedAmount" />
-            </label>
-            <label>
-              <span>Remarks</span>
-              <input formControlName="remarks" />
-            </label>
-            <div class="button-row">
-              <button type="button" class="ghost" [disabled]="!selectedClosure" title="Move the selected closure into reconciliation" (click)="moveToReconciliation()">Start reconciliation</button>
-              <button type="button" [disabled]="!selectedClosure" title="Apply the bank confirmation and reconcile the selected closure" (click)="reconcile()">Reconcile now</button>
+          <div class="selected-box" *ngIf="selectedClosure; else noSelection">
+            <div class="result-head">
+              <div>
+                <div class="result-title">{{ selectedClosure.requestId }}</div>
+                <div class="result-sub">{{ selectedClosure.loanAccountNumber }} - {{ selectedClosure.borrowerName }}</div>
+              </div>
+              <span class="status" [class.risk]="statusTone(selectedClosure.closureStatus) === 'risk'">
+                {{ selectedClosure.closureStatus }}
+              </span>
             </div>
-          </form>
 
-          <form [formGroup]="statusForm" class="action-form">
-            <label>
-              <span>Target status</span>
-              <select formControlName="targetStatus">
-                <option value="SETTLEMENT_CALCULATED">Settlement Calculated</option>
-                <option value="RECONCILIATION_PENDING">Reconciliation Pending</option>
-                <option value="RECONCILED">Reconciled</option>
-                <option value="APPROVED">Approved</option>
-                <option value="CLOSED">Closed</option>
-                <option value="REJECTED">Rejected</option>
-                <option value="ON_HOLD">On Hold</option>
-              </select>
-            </label>
-            <label>
-              <span>Remarks</span>
-              <input formControlName="remarks" />
-            </label>
-            <button type="button" class="ghost" [disabled]="!selectedClosure" title="Advance the selected closure to the chosen status" (click)="advanceStatus()">Advance status</button>
-          </form>
-        </div>
-      </article>
+            <div class="result-metrics">
+              <div>
+                <span>Settlement</span>
+                <strong>{{ selectedClosure.settlementAmount }}</strong>
+              </div>
+              <div>
+                <span>Bank confirmed</span>
+                <strong>{{ selectedClosure.bankConfirmedAmount || 'Not confirmed' }}</strong>
+              </div>
+              <div>
+                <span>Difference</span>
+                <strong>{{ selectedClosure.settlementDifference || '0.00' }}</strong>
+              </div>
+            </div>
+          </div>
 
-      <article class="panel animated-panel" *ngIf="activeTab === 'audit'">
+          <ng-template #noSelection>
+            <div class="empty-state">Select a closure from the queue to run settlement, reconciliation, or approval actions.</div>
+          </ng-template>
+
+          <div class="workflow-actions">
+            <form [formGroup]="settlementForm" class="action-form">
+              <label>
+                <span>Adjustment amount</span>
+                <input type="number" formControlName="adjustmentAmount" min="0" step="0.01" />
+              </label>
+              <label>
+                <span>Remarks</span>
+                <input formControlName="remarks" placeholder="Waiver / exception note" />
+              </label>
+              <button type="button" [disabled]="!selectedClosure || !canCalculateSettlement(selectedClosure)" (click)="calculateSettlement()">
+                Calculate settlement
+              </button>
+            </form>
+
+            <form [formGroup]="reconcileForm" class="action-form">
+              <label>
+                <span>Bank confirmed amount</span>
+                <input type="number" formControlName="bankConfirmedAmount" min="0" step="0.01" />
+              </label>
+              <label>
+                <span>Remarks</span>
+                <input formControlName="remarks" placeholder="Bank file / recon note" />
+              </label>
+              <div class="button-row">
+                <button type="button" class="ghost" [disabled]="!selectedClosure || !canStartReconciliation(selectedClosure)" (click)="moveToReconciliation()">
+                  Start reconciliation
+                </button>
+                <button type="button" [disabled]="!selectedClosure || !canReconcile(selectedClosure)" (click)="reconcile()">
+                  Reconcile now
+                </button>
+              </div>
+            </form>
+
+            <form [formGroup]="statusForm" class="action-form">
+              <label>
+                <span>Target status</span>
+                <select formControlName="targetStatus">
+                  <option *ngFor="let option of availableStatusOptions(selectedClosure); trackBy: trackByIndex" [value]="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+              <label>
+                <span>Remarks</span>
+                <input formControlName="remarks" placeholder="Operational decision note" />
+              </label>
+              <button type="button" class="ghost" [disabled]="!selectedClosure || !canAdvance(selectedClosure)" (click)="advanceStatus()">
+                Advance status
+              </button>
+            </form>
+          </div>
+        </article>
+
+        <article class="panel animated-panel">
+          <div class="section-head compact">
+            <h2>Status history</h2>
+            <span class="chip">Audit trail</span>
+          </div>
+
+          <div class="history-list" *ngIf="selectedClosure?.statusHistory?.length; else emptyHistory">
+            <div class="history-item" *ngFor="let item of selectedClosure?.statusHistory; trackBy: trackByIndex">
+              <div class="history-top">
+                <strong>{{ item.actionName }}</strong>
+                <span>{{ item.changedAt | date:'short' }}</span>
+              </div>
+              <div class="history-meta">
+                <span>{{ item.fromStatus || 'NEW' }} -> {{ item.toStatus }}</span>
+                <span>{{ item.changedBy || 'SYSTEM' }}</span>
+              </div>
+              <div class="history-remarks" *ngIf="item.remarks">{{ item.remarks }}</div>
+            </div>
+          </div>
+
+          <ng-template #emptyHistory>
+            <div class="empty-state">Select a closure with workflow activity to inspect the status history.</div>
+          </ng-template>
+        </article>
+      </section>
+
+      <section class="panel animated-panel" *ngIf="activeTab === 'audit'">
         <div class="section-head compact">
-          <h2>Audit / event stream</h2>
-          <span class="chip">GET /reports/events</span>
+          <h2>Audit event stream</h2>
+          <span class="chip">Searchable events</span>
         </div>
 
         <form class="filters" [formGroup]="eventForm">
@@ -327,30 +394,35 @@
           </label>
           <label>
             <span>Event type</span>
-            <input formControlName="eventType" placeholder="SETTLEMENT_CALCULATED" />
+            <input formControlName="eventType" placeholder="RECONCILED_MATCHED" />
           </label>
           <label>
-            <span>Text</span>
-            <input formControlName="text" placeholder="search audit stream" />
+            <span>Text search</span>
+            <input formControlName="text" placeholder="remarks / actor / request" />
           </label>
         </form>
 
         <div class="chip-row">
-          <button type="button" class="chip active" title="Reload audit events from the backend" (click)="loadEvents()">Refresh events</button>
-          <button type="button" class="chip" title="Download the current audit stream as CSV" (click)="exportEventsCsv()">Export events CSV</button>
+          <button type="button" class="chip active" (click)="loadEvents()">Refresh events</button>
+          <button type="button" class="chip" (click)="exportEventsCsv()">Export events CSV</button>
         </div>
 
-        <div class="event-list">
+        <div class="event-list" *ngIf="events.length; else emptyEvents">
           <div class="event-card" *ngFor="let event of events; trackBy: trackByIndex">
             <div class="event-time">{{ event.createdAt | date:'shortTime' }}</div>
             <div class="event-body">
               <div class="event-title">{{ event.eventType }} - {{ event.loanAccountNumber }}</div>
-              <div class="event-details">{{ event.details || 'Status transition recorded in the closure audit stream.' }}</div>
+              <div class="event-details">{{ event.details || 'Workflow transition recorded in the audit stream.' }}</div>
+              <div class="event-details event-details--meta">{{ event.actor || 'SYSTEM' }} | {{ event.requestId }}</div>
             </div>
             <div class="event-badge">{{ event.reconciliationStatus || 'AUDIT' }}</div>
           </div>
         </div>
-      </article>
-    </section>
-  </main>
-</div>
+
+        <ng-template #emptyEvents>
+          <div class="empty-state">No audit events matched the current event filters.</div>
+        </ng-template>
+      </section>
+    </main>
+  </div>
+</ng-template>

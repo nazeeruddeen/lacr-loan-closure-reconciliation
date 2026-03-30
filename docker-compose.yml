@@ -14,6 +14,30 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: lacr-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7.0
+    container_name: lacr-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
   backend:
     build:
       context: ./backend
@@ -23,12 +47,18 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
     environment:
       SERVER_PORT: 8012
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/lacr_loan_closure_reconciliation?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/lacr_audit
       SPRING_JPA_SHOW_SQL: "false"
     ports:
       - "8012:8012"
-

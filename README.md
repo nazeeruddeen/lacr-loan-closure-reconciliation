@@ -1,34 +1,85 @@
 # LACR - Loan Account Closure and Reconciliation
 
-A highly resilient, backend-focused distributed system workflow. This project serves as a capstone piece designed to showcase consistency, fault-tolerance, and operational maturity for senior-level engineering interviews.
+LACR is an operations-focused backend application for loan closure processing. It models the closure lifecycle end to end: intake, settlement calculation, reconciliation, approval, closure, audit traceability, CSV reporting, and idempotent workflow commands.
 
-## 🎯 Core Interview Story: Distributed Systems Maturity
-This project provides a "Senior Signal" resume story. Instead of relying on a monolithic database lock, it implements patterns essential to distributed systems—idempotency, optimistic locking, Dead Letter Tables, and structured MDC logging.
+## Why this project matters
+- Shows strong backend workflow design and state-transition control
+- Demonstrates Redis-backed idempotency for retry-safe operations
+- Tracks every state change in a Mongo-backed audit stream with durable fallback
+- Records publishable workflow events through an outbox-style hook for downstream integration
+- Surfaces Prometheus metrics and structured correlation logging
+- Ships with Docker, Kubernetes, and Jenkins runtime assets
+- Includes a live Angular operator console instead of a static shell
 
-### Key Architectural Decisions & Features
-*   **Idempotency Engine:** Integrates a `LoanClosureIdempotencyStore` to safely handle duplicate incoming API requests. Prevents duplicate closure calculations even if a client retries a timeout.
-*   **Optimistic Locking (`@Version`):** Protects the `loan_closure_cases` table from parallel reconciliation races (e.g., a scheduled job and a manual API trigger both trying to reconcile the same file simultaneously), throwing `OptimisticLockingFailureException` instead of deadlocking.
-*   **Dead Letter Table (DLT) Pattern:** Rather than discarding failed events after retries are exhausted, the system persists them fully payload-intact to a `failed_events` table utilizing a decoupled `PROPAGATION_REQUIRES_NEW` transaction constraint. This ensures the failure record always commits, independent of the parent rollback.
-*   **Distributed Tracing (MDC):** Employs an `MdcCorrelationIdFilter` to track `X-Correlation-Id` across the entire request lifecycle. The Logback JSON encoder propagates this ID into every single log line, effectively solving the "needle in a haystack" problem of debugging concurrent closure workflows.
-*   **Micrometer Metrics:** Exposes PromQL-ready custom metrics including counters for `lacr.reconciliation_exceptions_total` and timers with latency percentiles (p50/p95/p99) for the settlement calculation processes.
+## Core workflow
+1. Create a closure request
+2. Calculate settlement with waivers or adjustments
+3. Move the case into reconciliation
+4. Reconcile against bank-confirmed amount
+5. Approve matched cases or place mismatches on hold / reject
+6. Close approved cases
+7. Search, audit, and export operational data
 
-## 🛠 Tech Stack
-*   **Java 17** & **Spring Boot 3.2**
-*   **Spring Data JPA** (MySQL with `@Version` columns)
-*   **Flyway** (Database migrations)
-*   **Micrometer Prometheus Registry** (Custom Service Metrics)
-*   **Logstash Logback Encoder** (Structured MDC JSON Logging)
-*   **Swagger/OpenAPI** & **Actuator**
+## Tech stack
+- Java 17
+- Spring Boot 3.2
+- Spring Data JPA
+- Spring Security (HTTP Basic for operator access)
+- MySQL + Flyway
+- MongoDB-backed audit/event store with durable fallback
+- Redis-backed idempotency cache with durable fallback
+- Micrometer Prometheus
+- Structured Logback JSON logging with MDC correlation IDs
+- Angular standalone frontend
+- Docker, Kubernetes, Jenkins
 
-## 🚀 Run Locally
+## Operator accounts
+The backend seeds in-memory operator users for local execution:
 
-**Backend:**
+| Username | Password | Role |
+| --- | --- | --- |
+| `closureops` | `Closure@123` | `ROLE_CLOSURE_OPS` |
+| `reconlead` | `Recon@123` | `ROLE_RECON_LEAD` |
+| `auditor` | `Auditor@123` | `ROLE_AUDITOR` |
+| `opsadmin` | `Ops@123` | `ROLE_OPS_ADMIN` |
+
+## Local run
+### Backend
 ```bash
 cd backend
 mvn clean test
 mvn spring-boot:run
 ```
 
-**Ports:**
-*   API / Swagger UI: `http://localhost:8012/swagger-ui.html`
-*   Prometheus Metrics: `http://localhost:8012/actuator/prometheus`
+### Full local stack
+```bash
+docker compose up -d --build
+```
+
+### Frontend
+```bash
+cd frontend
+npm install
+npm start
+```
+
+## Default ports
+- Backend API: `http://localhost:8012`
+- Swagger UI: `http://localhost:8012/swagger-ui.html`
+- Health: `http://localhost:8012/actuator/health`
+- Prometheus metrics: `http://localhost:8012/actuator/prometheus`
+- Frontend: `http://localhost:4500`
+
+## Runtime assets
+- Docker Compose: [docker-compose.yml](./docker-compose.yml)
+- Backend Docker image: [backend/Dockerfile](./backend/Dockerfile)
+- Kubernetes manifests: [k8s](./k8s)
+- Jenkins pipeline: [Jenkinsfile](./Jenkinsfile)
+
+## Interview-ready highlights
+- Idempotency is implemented through `LoanClosureIdempotencyStore`, which now uses Redis as the fast-path store while preserving a durable fallback path.
+- Audit visibility is preserved through `LoanClosureAuditStore`, which now uses MongoDB as the primary audit/event store while preserving fallback behavior.
+- Workflow side effects are coordinated through `LoanClosureWorkflowRecorder`, which keeps audit persistence and publishable event recording aligned.
+- Publishability is modeled through `LoanClosureOutboxService`, which stores pending workflow events and retries publication through a scheduled job.
+- Actor attribution now comes from authenticated operator identity, so history and audit entries show who performed each action.
+- The frontend is a secured operator console, not a mock dashboard fallback.

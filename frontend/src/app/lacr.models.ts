@@ -13,6 +13,28 @@ export interface LoanClosureSummary {
   pendingReconciliations: number;
   totalSettlementAmount: string;
   totalOutstandingPrincipal: string;
+  closureStatusCounts?: Record<string, number>;
+  reconciliationStatusCounts?: Record<string, number>;
+}
+
+export interface OperatorProfile {
+  username: string;
+  displayName: string;
+  roles: string[];
+}
+
+export interface OperatorCredentials {
+  username: string;
+  password: string;
+}
+
+export interface ApiErrorResponse {
+  timestamp?: string;
+  status?: number;
+  error?: string;
+  message?: string;
+  path?: string;
+  validationErrors?: Array<{ field: string; message: string }>;
 }
 
 export interface LoanClosureItem {
@@ -38,6 +60,16 @@ export interface LoanClosureItem {
   reconciledAt?: string | null;
   approvedAt?: string | null;
   closedAt?: string | null;
+  statusHistory?: LoanClosureHistoryItem[];
+}
+
+export interface LoanClosureHistoryItem {
+  fromStatus?: string | null;
+  toStatus: string;
+  actionName: string;
+  remarks?: string | null;
+  changedBy?: string | null;
+  changedAt?: string | null;
 }
 
 export interface LoanClosureEventItem {

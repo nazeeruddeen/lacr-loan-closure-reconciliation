@@ -1,8 +1,8 @@
 package com.employee.loan_system.lacr.service;
 
-import com.employee.loan_system.lacr.audit.LoanClosureAuditStore;
 import com.employee.loan_system.lacr.audit.LoanClosureEvent;
 import com.employee.loan_system.lacr.audit.LoanClosureEventType;
+import com.employee.loan_system.lacr.audit.LoanClosureAuditStore;
 import com.employee.loan_system.lacr.cache.LoanClosureIdempotencyStore;
 import com.employee.loan_system.lacr.dto.AdvanceClosureStatusRequest;
 import com.employee.loan_system.lacr.dto.CalculateSettlementRequest;
@@ -22,6 +22,9 @@ import com.employee.loan_system.lacr.repository.LoanClosureCaseRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,15 +41,18 @@ public class LoanClosureService {
 
     private final LoanClosureCaseRepository closureCaseRepository;
     private final LoanClosureAuditStore auditStore;
+    private final LoanClosureWorkflowRecorder workflowRecorder;
     private final LoanClosureIdempotencyStore idempotencyStore;
     private final Map<LoanClosureStatus, List<LoanClosureStatus>> allowedTransitions = new EnumMap<>(LoanClosureStatus.class);
 
     public LoanClosureService(
             LoanClosureCaseRepository closureCaseRepository,
             LoanClosureAuditStore auditStore,
+            LoanClosureWorkflowRecorder workflowRecorder,
             LoanClosureIdempotencyStore idempotencyStore) {
         this.closureCaseRepository = closureCaseRepository;
         this.auditStore = auditStore;
+        this.workflowRecorder = workflowRecorder;
         this.idempotencyStore = idempotencyStore;
         allowedTransitions.put(LoanClosureStatus.REQUESTED, List.of(LoanClosureStatus.SETTLEMENT_CALCULATED, LoanClosureStatus.REJECTED));
         allowedTransitions.put(LoanClosureStatus.SETTLEMENT_CALCULATED, List.of(LoanClosureStatus.RECONCILIATION_PENDING, LoanClosureStatus.REJECTED));
@@ -396,17 +402,13 @@ public class LoanClosureService {
             LoanClosureStatus fromStatus,
             LoanClosureStatus toStatus,
             String details) {
-        auditStore.append(new LoanClosureEvent(
-                closureCase.getRequestId(),
-                closureCase.getId(),
-                closureCase.getLoanAccountNumber(),
+        workflowRecorder.record(
+                closureCase,
                 eventType,
                 fromStatus,
                 toStatus,
-                closureCase.getReconciliationStatus(),
                 currentActor(),
-                trimToNull(details),
-                LocalDateTime.now()));
+                trimToNull(details));
     }
 
     private LoanClosureStatusHistory history(LoanClosureStatus from, LoanClosureStatus to, String action, String remarks) {
@@ -459,7 +461,11 @@ public class LoanClosureService {
     }
 
     private String currentActor() {
-        return "SYSTEM";
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            return "SYSTEM";
+        }
+        return authentication.getName();
     }
 
     private BigDecimal calculateSettlement(BigDecimal outstandingPrincipal, BigDecimal accruedInterest, BigDecimal penaltyAmount, BigDecimal processingFee, BigDecimal adjustmentAmount) {
