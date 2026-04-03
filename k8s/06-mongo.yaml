@@ -1,3 +1,5 @@
+# Integration-only single-node Mongo manifest.
+# Production should point the application at a managed HA MongoDB endpoint through ExternalSecret-backed settings.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,6 +15,7 @@ spec:
       labels:
         app: lacr-mongo
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: mongo
           image: mongo:7.0
@@ -28,6 +31,13 @@ spec:
               port: 27017
             initialDelaySeconds: 20
             periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
 ---
 apiVersion: v1
 kind: Service

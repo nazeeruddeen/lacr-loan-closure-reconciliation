@@ -10,12 +10,15 @@ import {
   CalculateSettlementRequest,
   ClosureSearchFilters,
   CreateLoanClosureRequest,
+  FailedEventItem,
   LoanClosureEventItem,
   LoanClosureItem,
   LoanClosurePageResponse,
   LoanClosureSummary,
   OperatorCredentials,
   OperatorProfile,
+  OutboxHealth,
+  OutboxRecoveryResult,
   ReconcileClosureRequest
 } from './lacr.models';
 import { LacrApiService } from './lacr-api.service';
@@ -64,11 +67,11 @@ export class AppComponent implements OnInit {
     { value: 'ON_HOLD', label: 'Place on hold' }
   ];
 
-  readonly quickCredentials = [
-    { username: 'closureops', password: 'Closure@123', label: 'Closure Ops' },
-    { username: 'reconlead', password: 'Recon@123', label: 'Recon Lead' },
-    { username: 'auditor', password: 'Auditor@123', label: 'Audit Analyst' },
-    { username: 'opsadmin', password: 'Ops@123', label: 'Ops Admin' }
+  readonly operatorRoles = [
+    { username: 'closureops', label: 'Closure Ops' },
+    { username: 'reconlead', label: 'Recon Lead' },
+    { username: 'auditor', label: 'Audit Analyst' },
+    { username: 'opsadmin', label: 'Ops Admin' }
   ];
 
   operatorProfile: OperatorProfile | null = null;
@@ -76,6 +79,8 @@ export class AppComponent implements OnInit {
   initializing = true;
   loginBusy = false;
   loading = false;
+  operationsLoading = false;
+  recoveryBusy = false;
   heroAction: 'refresh' | 'summary' | 'events' | 'closures' | null = null;
   busyClosureId: number | null = null;
   busyAction: WorkflowAction | null = null;
@@ -89,6 +94,8 @@ export class AppComponent implements OnInit {
   closurePage: LoanClosurePageResponse = this.emptyPage();
   closures: LoanClosureItem[] = [];
   events: LoanClosureEventItem[] = [];
+  failedEvents: FailedEventItem[] = [];
+  outboxHealth: OutboxHealth | null = null;
   selectedClosure: LoanClosureItem | null = null;
   stages: StageCard[] = [];
 
@@ -106,8 +113,8 @@ export class AppComponent implements OnInit {
     private readonly fb: FormBuilder
   ) {
     this.loginForm = this.fb.group({
-      username: ['closureops', [Validators.required]],
-      password: ['Closure@123', [Validators.required]]
+      username: ['', [Validators.required]],
+      password: ['', [Validators.required]]
     });
 
     this.searchForm = this.fb.group({
@@ -172,8 +179,8 @@ export class AppComponent implements OnInit {
     this.activeTab = tab;
   }
 
-  useQuickCredentials(username: string, password: string): void {
-    this.loginForm.patchValue({ username, password });
+  useQuickCredentials(username: string): void {
+    this.loginForm.patchValue({ username });
   }
 
   login(): void {
@@ -213,8 +220,12 @@ export class AppComponent implements OnInit {
     this.selectedClosure = null;
     this.closures = [];
     this.events = [];
+    this.failedEvents = [];
+    this.outboxHealth = null;
     this.summary = this.emptySummary();
     this.closurePage = this.emptyPage();
+    this.operationsLoading = false;
+    this.recoveryBusy = false;
     this.stages = this.stageCatalog.map((stage) => ({ ...stage, count: 0 }));
     this.errorMessage = '';
     this.actionMessage = 'Signed out. Sign in to continue.';
@@ -232,6 +243,7 @@ export class AppComponent implements OnInit {
     this.loadSummary();
     this.loadClosures(0);
     this.loadEvents();
+    this.loadOperations();
   }
 
   loadSummary(): void {
@@ -286,6 +298,48 @@ export class AppComponent implements OnInit {
       },
       error: (error) => this.handleApiError(error, 'Unable to load audit events.')
     });
+  }
+
+  loadOperations(): void {
+    if (!this.authenticated) {
+      return;
+    }
+    this.operationsLoading = true;
+    this.api.outboxHealth().pipe(finalize(() => (this.operationsLoading = false))).subscribe({
+      next: (health) => {
+        this.outboxHealth = health;
+        this.actionMessage = this.composeOpsMessage(health);
+        this.errorMessage = '';
+      },
+      error: (error) => this.handleApiError(error, 'Unable to load outbox health.')
+    });
+
+    this.api.failedEvents().subscribe({
+      next: (events) => {
+        this.failedEvents = events;
+      },
+      error: (error) => this.handleApiError(error, 'Unable to load failed events.')
+    });
+  }
+
+  recoverStaleOutbox(): void {
+    if (this.recoveryBusy) {
+      return;
+    }
+    this.recoveryBusy = true;
+    this.errorMessage = '';
+    this.actionMessage = 'Reclaiming stale outbox rows and republishing...';
+    this.api
+      .recoverOutbox()
+      .pipe(finalize(() => (this.recoveryBusy = false)))
+      .subscribe({
+        next: (result: OutboxRecoveryResult) => {
+          this.actionMessage = `Recovered ${result.recoveredCount} stale event(s) and republished ${result.republishedCount}.`;
+          this.loadOperations();
+          this.loadEvents();
+        },
+        error: (error) => this.handleApiError(error, 'Unable to recover stale outbox events.')
+      });
   }
 
   runSearch(): void {
@@ -582,6 +636,7 @@ export class AppComponent implements OnInit {
     this.loadSummary();
     this.loadClosures(0);
     this.loadEvents();
+    this.loadOperations();
   }
 
   private onWorkflowSuccess(closure: LoanClosureItem, message: string): void {
@@ -661,6 +716,16 @@ export class AppComponent implements OnInit {
       { ...this.stageCatalog[3], count: summary.approvedRequests },
       { ...this.stageCatalog[4], count: summary.closedRequests }
     ];
+  }
+
+  private composeOpsMessage(health: OutboxHealth): string {
+    const parts = [
+      `${health.pendingCount} pending`,
+      `${health.processingCount} processing`,
+      `${health.staleProcessingCount} stale`,
+      `${health.failedCount} failed`
+    ];
+    return `Outbox: ${parts.join(' · ')}`;
   }
 
   private download(filename: string, text: string, successMessage: string): void {

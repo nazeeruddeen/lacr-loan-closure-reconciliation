@@ -10,6 +10,8 @@ spec:
     requests:
       storage: 5Gi
 ---
+# Integration-only single-node MySQL manifest.
+# Production should point the application at a managed HA MySQL endpoint through ExternalSecret-backed settings.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,6 +27,7 @@ spec:
       labels:
         app: lacr-mysql
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: mysql
           image: mysql:8.4
@@ -35,9 +38,43 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: lacr-secret
-                  key: SPRING_DATASOURCE_PASSWORD
+                  key: MYSQL_ROOT_PASSWORD
             - name: MYSQL_DATABASE
               value: lacr_loan_closure_reconciliation
+            - name: MYSQL_USER
+              value: lacr_app
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lacr-secret
+                  key: MYSQL_APP_PASSWORD
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent
+            initialDelaySeconds: 40
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           volumeMounts:
             - name: mysql-data
               mountPath: /var/lib/mysql
@@ -57,4 +94,3 @@ spec:
   ports:
     - port: 3306
       targetPort: 3306
-

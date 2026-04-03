@@ -46,6 +46,9 @@ class LoanClosureServiceTest {
     @Mock
     private FailedEventRepository failedEventRepository;
 
+    @Mock
+    private LoanClosureEventPublisher eventPublisher;
+
     private final LoanClosureAuditStore auditStore = new LoanClosureAuditStore();
     private final LoanClosureIdempotencyStore idempotencyStore = new LoanClosureIdempotencyStore();
 
@@ -54,6 +57,7 @@ class LoanClosureServiceTest {
         LoanClosureOutboxService outboxService = new LoanClosureOutboxService(
                 outboxEventRepository,
                 failedEventService,
+                eventPublisher,
                 new ObjectMapper().findAndRegisterModules(),
                 3);
         LoanClosureWorkflowRecorder workflowRecorder = new LoanClosureWorkflowRecorder(auditStore, outboxService);

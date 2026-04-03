@@ -68,7 +68,10 @@ pipeline {
                 expression { return env.KUBECONFIG?.trim() }
             }
             steps {
-                sh 'kubectl apply -f k8s/'
+                sh 'kubectl apply -f k8s/00-namespace.yaml'
+                sh 'kubectl apply -f k8s/01-configmap.yaml'
+                sh 'kubectl apply -f k8s/02-secret.yaml'
+                sh 'kubectl apply -f k8s/04-backend.yaml'
                 sh 'kubectl rollout status deployment/lacr-backend -n lacr-loan --timeout=120s'
             }
         }

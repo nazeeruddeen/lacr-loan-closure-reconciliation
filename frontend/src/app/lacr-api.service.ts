@@ -6,11 +6,14 @@ import {
   AdvanceClosureStatusRequest,
   CalculateSettlementRequest,
   ClosureSearchFilters,
+  FailedEventItem,
   CreateLoanClosureRequest,
   LoanClosureEventItem,
   LoanClosureItem,
   LoanClosurePageResponse,
   LoanClosureSummary,
+  OutboxHealth,
+  OutboxRecoveryResult,
   ReconcileClosureRequest
 } from './lacr.models';
 
@@ -54,6 +57,19 @@ export class LacrApiService {
   events(filters: { requestId?: string; loanAccountNumber?: string; eventType?: string; text?: string } = {}): Observable<LoanClosureEventItem[]> {
     const params = this.buildParams(filters);
     return this.http.get<LoanClosureEventItem[]>(`${environment.apiBaseUrl}/reports/events`, { params });
+  }
+
+  outboxHealth(): Observable<OutboxHealth> {
+    return this.http.get<OutboxHealth>(`${environment.opsApiBaseUrl}/outbox/health`);
+  }
+
+  recoverOutbox(): Observable<OutboxRecoveryResult> {
+    return this.http.post<OutboxRecoveryResult>(`${environment.opsApiBaseUrl}/outbox/recover`, {});
+  }
+
+  failedEvents(filters: { requestId?: string; loanAccountNumber?: string } = {}): Observable<FailedEventItem[]> {
+    const params = this.buildParams(filters);
+    return this.http.get<FailedEventItem[]>(`${environment.opsApiBaseUrl}/failed-events`, { params });
   }
 
   summaryCsv(): Observable<string> {

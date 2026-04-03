@@ -1,0 +1,7 @@
+backend/target/
+frontend/dist/
+frontend/.angular/
+node_modules/
+.mvn/
+.idea/
+.vscode/

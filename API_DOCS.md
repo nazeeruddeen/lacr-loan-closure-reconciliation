@@ -9,13 +9,25 @@ All `/api/**` endpoints require HTTP Basic authentication.
 
 Example local header:
 ```http
-Authorization: Basic base64(closureops:Closure@123)
+Authorization: Basic base64(<operator-username>:<operator-password>)
 ```
 
 ## Operator endpoint
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `GET` | `/api/v1/operators/me` | Returns the current authenticated operator profile |
+
+## Operations endpoints
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/v1/ops/outbox/health` | Returns pending, processing, failed, stale, and published outbox counts |
+| `POST` | `/api/v1/ops/outbox/recover` | Reclaims stale `PROCESSING` outbox rows and republishes them |
+| `GET` | `/api/v1/ops/failed-events` | Returns failed workflow events for operator review |
+
+### Operations response shape
+- Outbox health includes pending, processing, published, failed, and stale counts, plus oldest/newest timestamps and the reclaim window.
+- Outbox recovery returns recovered and republished counts so operators can confirm the retry action completed.
+- Failed events include request id, loan account number, failure reason, attempt count, failed stage, actor, and timestamp.
 
 ## Workflow endpoints
 | Method | Endpoint | Description |
@@ -44,5 +56,7 @@ Authorization: Basic base64(closureops:Closure@123)
 - Redis is the primary idempotency fast path, with the persistent store retained as a durable fallback.
 - MongoDB is the primary audit/event store for event search and CSV export, with fallback persistence retained for resilience.
 - Workflow mutations also record outbox-style publishable events for downstream integration and replay-friendly operations.
+- Stale outbox recovery is an operator action, not a hidden background assumption.
+- Audit events include hash-chain metadata (`previousHash`, `recordHash`) so tampering can be detected during review.
 - Audit events capture operator actor, status transition, reconciliation state, and free-form remarks.
 - Validation and business-rule failures return structured error payloads with request path and validation details when applicable.

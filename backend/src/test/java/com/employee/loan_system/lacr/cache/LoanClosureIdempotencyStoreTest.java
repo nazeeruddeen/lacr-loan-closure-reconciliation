@@ -15,6 +15,7 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,6 +52,26 @@ class LoanClosureIdempotencyStoreTest {
 
         verify(valueOperations).set(eq("lacr:idempotency:CREATE:REQ-1"), any(String.class), any(Duration.class));
         verify(idempotencyRepository).save(any(LoanClosureIdempotencyEntry.class));
+    }
+
+    @Test
+    void putShouldPersistDurableRecordLongerThanRedisCache() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(idempotencyRepository.findByIdempotencyKey("CREATE:REQ-1")).thenReturn(Optional.empty());
+
+        LoanClosureIdempotencyStore store = new LoanClosureIdempotencyStore(
+                idempotencyRepository,
+                objectMapper,
+                redisTemplate,
+                Duration.ofMinutes(10),
+                Duration.ofDays(30));
+
+        store.put("CREATE:REQ-1", sampleResponse());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(LoanClosureIdempotencyEntry.class);
+        verify(idempotencyRepository).save(captor.capture());
+        LocalDateTime expiresAt = captor.getValue().getExpiresAt();
+        assertThat(Duration.between(LocalDateTime.now(), expiresAt)).isGreaterThan(Duration.ofDays(29));
     }
 
     @Test

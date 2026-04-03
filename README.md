@@ -9,7 +9,7 @@ LACR is an operations-focused backend application for loan closure processing. I
 - Records publishable workflow events through an outbox-style hook for downstream integration
 - Surfaces Prometheus metrics and structured correlation logging
 - Ships with Docker, Kubernetes, and Jenkins runtime assets
-- Includes a live Angular operator console instead of a static shell
+- Includes a live Angular operator console and recovery surface instead of a static shell
 
 ## Core workflow
 1. Create a closure request
@@ -34,14 +34,14 @@ LACR is an operations-focused backend application for loan closure processing. I
 - Docker, Kubernetes, Jenkins
 
 ## Operator accounts
-The backend seeds in-memory operator users for local execution:
+Usernames are fixed by role, while passwords must be supplied through environment variables or the production secret store:
 
-| Username | Password | Role |
-| --- | --- | --- |
-| `closureops` | `Closure@123` | `ROLE_CLOSURE_OPS` |
-| `reconlead` | `Recon@123` | `ROLE_RECON_LEAD` |
-| `auditor` | `Auditor@123` | `ROLE_AUDITOR` |
-| `opsadmin` | `Ops@123` | `ROLE_OPS_ADMIN` |
+| Username | Role |
+| --- | --- |
+| `closureops` | `ROLE_CLOSURE_OPS` |
+| `reconlead` | `ROLE_RECON_LEAD` |
+| `auditor` | `ROLE_AUDITOR` |
+| `opsadmin` | `ROLE_OPS_ADMIN` |
 
 ## Local run
 ### Backend
@@ -51,10 +51,14 @@ mvn clean test
 mvn spring-boot:run
 ```
 
+Provide datasource credentials and operator passwords through environment variables before using direct backend startup.
+
 ### Full local stack
 ```bash
 docker compose up -d --build
 ```
+
+Create a local `.env` from `.env.example` before bringing up the stack so operator passwords and database credentials are not committed in the repository.
 
 ### Frontend
 ```bash
@@ -76,10 +80,22 @@ npm start
 - Kubernetes manifests: [k8s](./k8s)
 - Jenkins pipeline: [Jenkinsfile](./Jenkinsfile)
 
+## Production deployment posture
+- backend pods run as a rolling two-replica deployment in Kubernetes
+- application secrets and connection settings are expected to come from an External Secrets store, not committed manifest values
+- the in-repo MySQL, Redis, and Mongo manifests are for integration environments only; production should use managed HA backing services
+
 ## Interview-ready highlights
 - Idempotency is implemented through `LoanClosureIdempotencyStore`, which now uses Redis as the fast-path store while preserving a durable fallback path.
 - Audit visibility is preserved through `LoanClosureAuditStore`, which now uses MongoDB as the primary audit/event store while preserving fallback behavior.
 - Workflow side effects are coordinated through `LoanClosureWorkflowRecorder`, which keeps audit persistence and publishable event recording aligned.
 - Publishability is modeled through `LoanClosureOutboxService`, which stores pending workflow events and retries publication through a scheduled job.
+- Stale outbox rows are observable and recoverable through the `/api/v1/ops/outbox/*` operator endpoints and the recovery job.
+- Audit events now expose hash-chain metadata so traceability can be verified from the console and CSV exports.
 - Actor attribution now comes from authenticated operator identity, so history and audit entries show who performed each action.
 - The frontend is a secured operator console, not a mock dashboard fallback.
+
+## Operational references
+- [API docs](./API_DOCS.md)
+- [Operator runbook](./RUNBOOK.md)
+- [Project scope](./PROJECT_SCOPE.md)

@@ -3,8 +3,8 @@
     <div class="eyebrow">LACR Operator Console</div>
     <h1>Sign in to manage closure settlement, reconciliation, and audit review.</h1>
     <p>
-      This console is meant for internal operations teams. Use one of the seeded operator accounts below or sign in with the
-      credentials configured in the backend security configuration.
+      This console is meant for internal operations teams. Sign in with a provisioned operator account whose password is supplied
+      through the runtime secret store.
     </p>
 
     <form class="auth-form" [formGroup]="loginForm">
@@ -27,11 +27,11 @@
       <button
         type="button"
         class="credential-card"
-        *ngFor="let credential of quickCredentials; trackBy: trackByIndex"
-        (click)="useQuickCredentials(credential.username, credential.password)">
+        *ngFor="let credential of operatorRoles; trackBy: trackByIndex"
+        (click)="useQuickCredentials(credential.username)">
         <strong>{{ credential.label }}</strong>
         <span>{{ credential.username }}</span>
-        <small>{{ credential.password }}</small>
+        <small>password managed outside the UI</small>
       </button>
     </div>
   </section>
@@ -70,6 +70,7 @@
         <button class="nav-item" [class.active]="activeTab === 'closures'" (click)="setTab('closures')">Closures Queue</button>
         <button class="nav-item" [class.active]="activeTab === 'actions'" (click)="setTab('actions')">Selected Actions</button>
         <button class="nav-item" [class.active]="activeTab === 'audit'" (click)="setTab('audit')">Audit Stream</button>
+        <button class="nav-item" [class.active]="activeTab === 'operations'" (click)="setTab('operations')">Operations</button>
       </nav>
 
       <div class="sidebar-footer">
@@ -124,6 +125,22 @@
             <div>
               <span>Last refreshed</span>
               <strong>{{ lastRefreshed || 'Waiting for first sync' }}</strong>
+            </div>
+            <div>
+              <span>Outbox stale</span>
+              <strong>{{ outboxHealth?.staleProcessingCount ?? 0 }}</strong>
+            </div>
+            <div>
+              <span>Failed events</span>
+              <strong>{{ failedEvents.length }}</strong>
+            </div>
+            <div>
+              <span>Outbox pending</span>
+              <strong>{{ outboxHealth?.pendingCount ?? 0 }}</strong>
+            </div>
+            <div>
+              <span>Outbox processing</span>
+              <strong>{{ outboxHealth?.processingCount ?? 0 }}</strong>
             </div>
           </div>
         </div>
@@ -377,6 +394,99 @@
         </article>
       </section>
 
+      <section class="panel animated-panel" *ngIf="activeTab === 'operations'">
+        <div class="section-head compact">
+          <h2>Operator recovery and health</h2>
+          <span class="chip">Recovery controls</span>
+        </div>
+
+        <div class="operations-toolbar">
+          <div class="hero-status" [class.hero-status--error]="((outboxHealth?.staleProcessingCount ?? 0) > 0)">
+            {{ operationsLoading ? 'Refreshing outbox and failed-event state...' : (actionMessage || 'Operator recovery state ready.') }}
+          </div>
+          <div class="chip-row">
+            <button type="button" class="chip active" [disabled]="operationsLoading" (click)="loadOperations()">
+              {{ operationsLoading ? 'Refreshing...' : 'Refresh ops state' }}
+            </button>
+            <button type="button" class="chip" [disabled]="recoveryBusy || (outboxHealth?.staleProcessingCount ?? 0) === 0" (click)="recoverStaleOutbox()">
+              {{ recoveryBusy ? 'Recovering...' : 'Recover stale outbox' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="operations-grid">
+          <article class="ops-card">
+            <div class="ops-card-head">
+              <h3>Outbox health</h3>
+              <span class="chip">Reclaim after {{ outboxHealth?.reclaimAfter || 'PT15M' }}</span>
+            </div>
+            <div class="ops-metrics">
+              <div>
+                <span>Pending</span>
+                <strong>{{ outboxHealth?.pendingCount ?? 0 }}</strong>
+              </div>
+              <div>
+                <span>Processing</span>
+                <strong>{{ outboxHealth?.processingCount ?? 0 }}</strong>
+              </div>
+              <div>
+                <span>Published</span>
+                <strong>{{ outboxHealth?.publishedCount ?? 0 }}</strong>
+              </div>
+              <div>
+                <span>Failed</span>
+                <strong>{{ outboxHealth?.failedCount ?? 0 }}</strong>
+              </div>
+              <div>
+                <span>Stale processing</span>
+                <strong>{{ outboxHealth?.staleProcessingCount ?? 0 }}</strong>
+              </div>
+              <div>
+                <span>Newest publish</span>
+                <strong>{{ outboxHealth?.newestPublishedAt ? (outboxHealth?.newestPublishedAt | date:'short') : 'None yet' }}</strong>
+              </div>
+            </div>
+            <div class="compact-note">
+              <div class="compact-note-title">Recovery posture</div>
+              <ul>
+                <li>Processing rows are reclaimed after the stale window.</li>
+                <li>Republish runs through the same outbox contract.</li>
+                <li>Recovery stays visible to operators instead of being a hidden background task.</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="ops-card">
+            <div class="ops-card-head">
+              <h3>Failed events</h3>
+              <span class="chip">{{ failedEvents.length }} records</span>
+            </div>
+
+            <div class="failed-event-list" *ngIf="failedEvents.length; else emptyFailedEvents">
+              <div class="failed-event-item" *ngFor="let failed of failedEvents; trackBy: trackByIndex">
+                <div class="failed-event-top">
+                  <strong>{{ failed.requestId }}</strong>
+                  <span>{{ failed.failedAt | date:'short' }}</span>
+                </div>
+                <div class="failed-event-meta">
+                  <span>{{ failed.loanAccountNumber || 'No loan account' }}</span>
+                  <span>{{ failed.failedStage || 'UNKNOWN_STAGE' }}</span>
+                </div>
+                <div class="failed-event-reason">{{ failed.failureReason || 'Failure reason not recorded.' }}</div>
+                <div class="failed-event-meta">
+                  <span>Attempts: {{ failed.attemptCount }}</span>
+                  <span>{{ failed.createdBy || 'SYSTEM' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <ng-template #emptyFailedEvents>
+              <div class="empty-state">No failed events are currently queued for operator review.</div>
+            </ng-template>
+          </article>
+        </div>
+      </section>
+
       <section class="panel animated-panel" *ngIf="activeTab === 'audit'">
         <div class="section-head compact">
           <h2>Audit event stream</h2>
@@ -414,6 +524,10 @@
               <div class="event-title">{{ event.eventType }} - {{ event.loanAccountNumber }}</div>
               <div class="event-details">{{ event.details || 'Workflow transition recorded in the audit stream.' }}</div>
               <div class="event-details event-details--meta">{{ event.actor || 'SYSTEM' }} | {{ event.requestId }}</div>
+              <div class="event-hash" *ngIf="event.previousHash || event.recordHash">
+                <span *ngIf="event.previousHash">prev {{ event.previousHash }}</span>
+                <span *ngIf="event.recordHash">hash {{ event.recordHash }}</span>
+              </div>
             </div>
             <div class="event-badge">{{ event.reconciliationStatus || 'AUDIT' }}</div>
           </div>

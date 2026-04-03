@@ -39,6 +39,31 @@ class LoanClosureAuditStoreTest {
     }
 
     @Test
+    void appendShouldChainHashesAcrossEventsForSameClosure() {
+        LoanClosureAuditStore store = new LoanClosureAuditStore(eventRepository, mongoRepository);
+
+        LoanClosureEvent first = store.append(sampleEvent());
+        LoanClosureEvent second = store.append(new LoanClosureEvent(
+                "REQ-1002",
+                1L,
+                "LN-1001",
+                LoanClosureEventType.CLOSED,
+                LoanClosureStatus.REQUESTED,
+                LoanClosureStatus.CLOSED,
+                ReconciliationStatus.PENDING,
+                "closureops",
+                "Closed after settlement",
+                LocalDateTime.of(2026, 3, 30, 22, 6),
+                null,
+                null));
+
+        assertThat(first.recordHash()).isNotBlank();
+        assertThat(second.previousHash()).isEqualTo(first.recordHash());
+        assertThat(second.recordHash()).isNotBlank();
+        assertThat(second.recordHash()).isNotEqualTo(first.recordHash());
+    }
+
+    @Test
     void findAllShouldReadFromMongoFirst() {
         LoanClosureAuditStore store = new LoanClosureAuditStore(eventRepository, mongoRepository);
         when(mongoRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(sampleDocument()));
@@ -61,7 +86,9 @@ class LoanClosureAuditStoreTest {
                 ReconciliationStatus.PENDING,
                 "closureops",
                 "Created from operator console",
-                LocalDateTime.of(2026, 3, 30, 22, 5)
+                LocalDateTime.of(2026, 3, 30, 22, 5),
+                null,
+                null
         );
     }
 
@@ -76,6 +103,8 @@ class LoanClosureAuditStoreTest {
         document.setActor("closureops");
         document.setDetails("Created from operator console");
         document.setCreatedAt(LocalDateTime.of(2026, 3, 30, 22, 5));
+        document.setPreviousHash(null);
+        document.setRecordHash("hash-1");
         return document;
     }
 }

@@ -28,4 +28,6 @@ public class LoanClosureAuditEventDocument {
     private String actor;
     private String details;
     private LocalDateTime createdAt;
+    private String previousHash;
+    private String recordHash;
 }

@@ -4,7 +4,13 @@ metadata:
   name: lacr-backend
   namespace: lacr-loan
 spec:
-  replicas: 1
+  replicas: 2
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: lacr-backend
@@ -13,12 +19,50 @@ spec:
       labels:
         app: lacr-backend
     spec:
+      terminationGracePeriodSeconds: 30
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: lacr-backend
       containers:
         - name: backend
           image: lacr-loan-closure-reconciliation:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8012
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8012
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8012
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8012
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           envFrom:
             - configMapRef:
                 name: lacr-config
@@ -36,4 +80,3 @@ spec:
   ports:
     - port: 80
       targetPort: 8012
-

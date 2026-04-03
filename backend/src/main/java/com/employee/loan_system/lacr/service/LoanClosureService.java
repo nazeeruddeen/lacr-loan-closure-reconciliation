@@ -19,6 +19,9 @@ import com.employee.loan_system.lacr.entity.ReconciliationStatus;
 import com.employee.loan_system.lacr.exception.BusinessRuleException;
 import com.employee.loan_system.lacr.exception.ResourceNotFoundException;
 import com.employee.loan_system.lacr.repository.LoanClosureCaseRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -44,16 +47,36 @@ public class LoanClosureService {
     private final LoanClosureWorkflowRecorder workflowRecorder;
     private final LoanClosureIdempotencyStore idempotencyStore;
     private final Map<LoanClosureStatus, List<LoanClosureStatus>> allowedTransitions = new EnumMap<>(LoanClosureStatus.class);
+    private final MeterRegistry meterRegistry;
+    private final Counter closureRequestsTotal;
+    private final Counter idempotentDuplicatesTotal;
+    private final Counter reconciliationExceptionsTotal;
+    private final Timer settlementCalculationTimer;
 
     public LoanClosureService(
             LoanClosureCaseRepository closureCaseRepository,
             LoanClosureAuditStore auditStore,
             LoanClosureWorkflowRecorder workflowRecorder,
             LoanClosureIdempotencyStore idempotencyStore) {
+        this(closureCaseRepository, auditStore, workflowRecorder, idempotencyStore, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LoanClosureService(
+            LoanClosureCaseRepository closureCaseRepository,
+            LoanClosureAuditStore auditStore,
+            LoanClosureWorkflowRecorder workflowRecorder,
+            LoanClosureIdempotencyStore idempotencyStore,
+            MeterRegistry meterRegistry) {
         this.closureCaseRepository = closureCaseRepository;
         this.auditStore = auditStore;
         this.workflowRecorder = workflowRecorder;
         this.idempotencyStore = idempotencyStore;
+        this.meterRegistry = meterRegistry;
+        this.closureRequestsTotal = meterRegistry == null ? null : meterRegistry.counter("lacr.closure_requests_total");
+        this.idempotentDuplicatesTotal = meterRegistry == null ? null : meterRegistry.counter("lacr.idempotent_duplicates_total");
+        this.reconciliationExceptionsTotal = meterRegistry == null ? null : meterRegistry.counter("lacr.reconciliation_exceptions_total");
+        this.settlementCalculationTimer = meterRegistry == null ? null : meterRegistry.timer("lacr.settlement_duration_seconds");
         allowedTransitions.put(LoanClosureStatus.REQUESTED, List.of(LoanClosureStatus.SETTLEMENT_CALCULATED, LoanClosureStatus.REJECTED));
         allowedTransitions.put(LoanClosureStatus.SETTLEMENT_CALCULATED, List.of(LoanClosureStatus.RECONCILIATION_PENDING, LoanClosureStatus.REJECTED));
         allowedTransitions.put(LoanClosureStatus.RECONCILIATION_PENDING, List.of(LoanClosureStatus.APPROVED, LoanClosureStatus.REJECTED));
@@ -64,10 +87,12 @@ public class LoanClosureService {
 
     @Transactional
     public LoanClosureResponse createClosureRequest(CreateLoanClosureRequest request) {
+        increment(closureRequestsTotal);
         String requestId = normalize(request.getRequestId());
         String idempotencyKey = "CREATE:" + requestId;
         Optional<Object> cached = idempotencyStore.get(idempotencyKey);
         if (cached.isPresent() && cached.get() instanceof LoanClosureResponse response) {
+            increment(idempotentDuplicatesTotal);
             return response;
         }
 
@@ -75,6 +100,7 @@ public class LoanClosureService {
         if (existing != null) {
             LoanClosureResponse response = toResponse(existing);
             idempotencyStore.put(idempotencyKey, response);
+            increment(idempotentDuplicatesTotal);
             return response;
         }
 
@@ -114,10 +140,12 @@ public class LoanClosureService {
 
     @Transactional
     public LoanClosureResponse calculateSettlement(Long id, CalculateSettlementRequest request) {
+        increment(closureRequestsTotal);
         LoanClosureCase closureCase = findClosureCase(id);
         String idempotencyKey = "SETTLEMENT:" + id + ":" + scale(request.getAdjustmentAmount());
         Optional<Object> cached = idempotencyStore.get(idempotencyKey);
         if (cached.isPresent() && cached.get() instanceof LoanClosureResponse response) {
+            increment(idempotentDuplicatesTotal);
             return response;
         }
         if (closureCase.getClosureStatus() != LoanClosureStatus.REQUESTED
@@ -126,6 +154,7 @@ public class LoanClosureService {
         }
 
         BigDecimal adjustment = scale(request.getAdjustmentAmount());
+        Timer.Sample sample = settlementCalculationTimer == null ? null : Timer.start(meterRegistry);
         closureCase.setSettlementAdjustment(adjustment);
         closureCase.setSettlementAmount(calculateSettlement(
                 closureCase.getOutstandingPrincipal(),
@@ -140,15 +169,20 @@ public class LoanClosureService {
         recordEvent(saved, LoanClosureEventType.SETTLEMENT_CALCULATED, LoanClosureStatus.REQUESTED, LoanClosureStatus.SETTLEMENT_CALCULATED, request.getRemarks());
         LoanClosureResponse response = toResponse(saved);
         idempotencyStore.put(idempotencyKey, response);
+        if (sample != null) {
+            sample.stop(settlementCalculationTimer);
+        }
         return response;
     }
 
     @Transactional
     public LoanClosureResponse moveToReconciliation(Long id, AdvanceClosureStatusRequest request) {
+        increment(closureRequestsTotal);
         LoanClosureCase closureCase = findClosureCase(id);
         String idempotencyKey = "RECONCILE_START:" + id + ":" + request.getTargetStatus();
         Optional<Object> cached = idempotencyStore.get(idempotencyKey);
         if (cached.isPresent() && cached.get() instanceof LoanClosureResponse response) {
+            increment(idempotentDuplicatesTotal);
             return response;
         }
         if (closureCase.getClosureStatus() != LoanClosureStatus.SETTLEMENT_CALCULATED) {
@@ -168,10 +202,12 @@ public class LoanClosureService {
 
     @Transactional
     public LoanClosureResponse reconcile(Long id, ReconcileClosureRequest request) {
+        increment(closureRequestsTotal);
         LoanClosureCase closureCase = findClosureCase(id);
         String idempotencyKey = "RECONCILE:" + id + ":" + scale(request.getBankConfirmedAmount());
         Optional<Object> cached = idempotencyStore.get(idempotencyKey);
         if (cached.isPresent() && cached.get() instanceof LoanClosureResponse response) {
+            increment(idempotentDuplicatesTotal);
             return response;
         }
         if (closureCase.getClosureStatus() != LoanClosureStatus.RECONCILIATION_PENDING) {
@@ -187,6 +223,9 @@ public class LoanClosureService {
         closureCase.setReconciliationStatus(difference.compareTo(BigDecimal.ZERO) == 0
                 ? ReconciliationStatus.MATCHED
                 : ReconciliationStatus.MISMATCHED);
+        if (closureCase.getReconciliationStatus() == ReconciliationStatus.MISMATCHED) {
+            increment(reconciliationExceptionsTotal);
+        }
 
         if (closureCase.getReconciliationStatus() == ReconciliationStatus.MATCHED) {
             transition(closureCase, LoanClosureStatus.RECONCILED, "RECONCILE_MATCHED", request.getRemarks());
@@ -206,10 +245,12 @@ public class LoanClosureService {
 
     @Transactional
     public LoanClosureResponse advanceStatus(Long id, AdvanceClosureStatusRequest request) {
+        increment(closureRequestsTotal);
         LoanClosureCase closureCase = findClosureCase(id);
         String idempotencyKey = "STATUS:" + id + ":" + request.getTargetStatus();
         Optional<Object> cached = idempotencyStore.get(idempotencyKey);
         if (cached.isPresent() && cached.get() instanceof LoanClosureResponse response) {
+            increment(idempotentDuplicatesTotal);
             return response;
         }
         LoanClosureStatus current = closureCase.getClosureStatus();
@@ -368,7 +409,7 @@ public class LoanClosureService {
     public String exportEventsCsv(String requestId, String loanAccountNumber, LoanClosureEventType eventType, String text) {
         List<LoanClosureEventResponse> events = searchEvents(requestId, loanAccountNumber, eventType, text);
         StringBuilder csv = new StringBuilder();
-        csv.append("requestId,closureId,loanAccountNumber,eventType,fromStatus,toStatus,reconciliationStatus,actor,details,createdAt\n");
+        csv.append("requestId,closureId,loanAccountNumber,eventType,fromStatus,toStatus,reconciliationStatus,actor,details,createdAt,previousHash,recordHash\n");
         for (LoanClosureEventResponse event : events) {
             csv.append(csvCell(event.requestId())).append(',')
                     .append(csvCell(event.closureId())).append(',')
@@ -379,7 +420,9 @@ public class LoanClosureService {
                     .append(csvCell(event.reconciliationStatus())).append(',')
                     .append(csvCell(event.actor())).append(',')
                     .append(csvCell(event.details())).append(',')
-                    .append(csvCell(event.createdAt()))
+                    .append(csvCell(event.createdAt())).append(',')
+                    .append(csvCell(event.previousHash())).append(',')
+                    .append(csvCell(event.recordHash()))
                     .append('\n');
         }
         return csv.toString();
@@ -539,6 +582,8 @@ public class LoanClosureService {
                 .actor(event.actor())
                 .details(event.details())
                 .createdAt(event.createdAt())
+                .previousHash(event.previousHash())
+                .recordHash(event.recordHash())
                 .build();
     }
 
@@ -546,5 +591,11 @@ public class LoanClosureService {
         String text = value == null ? "" : String.valueOf(value);
         String escaped = text.replace("\"", "\"\"");
         return "\"" + escaped + "\"";
+    }
+
+    private void increment(Counter counter) {
+        if (counter != null) {
+            counter.increment();
+        }
     }
 }

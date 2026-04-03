@@ -4,12 +4,14 @@ services:
     container_name: lacr-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${LACR_MYSQL_ROOT_PASSWORD:?set LACR_MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: lacr_loan_closure_reconciliation
+      MYSQL_USER: lacr_app
+      MYSQL_PASSWORD: ${LACR_DB_PASSWORD:?set LACR_DB_PASSWORD}
     ports:
       - "3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -54,11 +56,16 @@ services:
     environment:
       SERVER_PORT: 8012
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/lacr_loan_closure_reconciliation?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_DATASOURCE_USERNAME: lacr_app
+      SPRING_DATASOURCE_PASSWORD: ${LACR_DB_PASSWORD:?set LACR_DB_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/lacr_audit
+      APP_SECURITY_ALLOWED_ORIGIN_PATTERNS: http://localhost:4500
+      APP_SECURITY_CLOSUREOPS_PASSWORD: ${LACR_CLOSUREOPS_PASSWORD:?set LACR_CLOSUREOPS_PASSWORD}
+      APP_SECURITY_RECONLEAD_PASSWORD: ${LACR_RECONLEAD_PASSWORD:?set LACR_RECONLEAD_PASSWORD}
+      APP_SECURITY_AUDITOR_PASSWORD: ${LACR_AUDITOR_PASSWORD:?set LACR_AUDITOR_PASSWORD}
+      APP_SECURITY_OPSADMIN_PASSWORD: ${LACR_OPSADMIN_PASSWORD:?set LACR_OPSADMIN_PASSWORD}
       SPRING_JPA_SHOW_SQL: "false"
     ports:
       - "8012:8012"

@@ -2,6 +2,9 @@ package com.employee.loan_system.lacr.service;
 
 import com.employee.loan_system.lacr.entity.FailedEvent;
 import com.employee.loan_system.lacr.repository.FailedEventRepository;
+import com.employee.loan_system.lacr.dto.FailedEventResponse;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -26,9 +29,16 @@ public class FailedEventService {
     private static final Logger log = LoggerFactory.getLogger(FailedEventService.class);
 
     private final FailedEventRepository failedEventRepository;
+    private final Counter failedEventsTotal;
 
     public FailedEventService(FailedEventRepository failedEventRepository) {
+        this(failedEventRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public FailedEventService(FailedEventRepository failedEventRepository, MeterRegistry meterRegistry) {
         this.failedEventRepository = failedEventRepository;
+        this.failedEventsTotal = meterRegistry == null ? null : meterRegistry.counter("lacr.failed_events_total");
     }
 
     /**
@@ -56,6 +66,9 @@ public class FailedEventService {
         event.setCreatedBy(createdBy);
 
         FailedEvent saved = failedEventRepository.save(event);
+        if (failedEventsTotal != null) {
+            failedEventsTotal.increment();
+        }
         log.error(
             "FailedEventService: recorded failed event id={} requestId={} stage={} reason={}",
             saved.getId(), requestId, failedStage, failureReason
@@ -77,5 +90,13 @@ public class FailedEventService {
     @Transactional(readOnly = true)
     public List<FailedEvent> listByLoanAccount(String loanAccountNumber) {
         return failedEventRepository.findByLoanAccountNumberOrderByFailedAtDesc(loanAccountNumber);
+    }
+
+    /**
+     * Returns failed events for a specific request ID â€” useful for incident correlation.
+     */
+    @Transactional(readOnly = true)
+    public List<FailedEvent> listByRequestId(String requestId) {
+        return failedEventRepository.findByRequestIdOrderByFailedAtDesc(requestId);
     }
 }

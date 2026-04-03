@@ -50,6 +50,9 @@ public class LoanClosureOutboxEvent {
     @Column(name = "publish_status", nullable = false, length = 20)
     private LoanClosureOutboxStatus publishStatus = LoanClosureOutboxStatus.PENDING;
 
+    @Column(name = "processing_started_at")
+    private LocalDateTime processingStartedAt;
+
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 

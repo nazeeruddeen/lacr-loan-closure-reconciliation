@@ -17,8 +17,11 @@ LACR is an internal operations application for loan-account closure processing. 
 - Redis-backed idempotent write commands with durable fallback
 - Mongo-backed audit/event storage with fallback persistence
 - Outbox-style workflow event recording with scheduled publish retries
+- Operator-visible outbox health and stale-row recovery
+- Audit hash-chain traceability in the event stream
 - Clearer service boundaries between workflow execution, audit recording, idempotency, and publishability
 - Operator attribution in audit and status history
 - Structured error contracts
 - Docker, Kubernetes, and Jenkins assets
 - Prometheus metrics and correlation-aware logging
+- A live operator console with recovery controls, not a static dashboard mock

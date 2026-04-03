@@ -83,6 +83,36 @@ export interface LoanClosureEventItem {
   actor?: string | null;
   details?: string | null;
   createdAt: string;
+  previousHash?: string | null;
+  recordHash?: string | null;
+}
+
+export interface FailedEventItem {
+  id: number;
+  requestId: string;
+  loanAccountNumber?: string | null;
+  failureReason?: string | null;
+  attemptCount: number;
+  failedStage?: string | null;
+  createdBy?: string | null;
+  failedAt: string;
+}
+
+export interface OutboxHealth {
+  pendingCount: number;
+  processingCount: number;
+  publishedCount: number;
+  failedCount: number;
+  staleProcessingCount: number;
+  oldestPendingAt?: string | null;
+  oldestProcessingAt?: string | null;
+  newestPublishedAt?: string | null;
+  reclaimAfter: string;
+}
+
+export interface OutboxRecoveryResult {
+  recoveredCount: number;
+  republishedCount: number;
 }
 
 export interface ClosureSearchFilters {

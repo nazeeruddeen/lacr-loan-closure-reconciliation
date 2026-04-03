@@ -6,6 +6,7 @@ import com.employee.loan_system.lacr.repository.LoanClosureIdempotencyRepository
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Component;
@@ -21,25 +22,40 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LoanClosureIdempotencyStore {
 
     private static final Logger log = LoggerFactory.getLogger(LoanClosureIdempotencyStore.class);
-    private static final Duration DEFAULT_TTL = Duration.ofMinutes(30);
+    private static final Duration DEFAULT_REDIS_TTL = Duration.ofMinutes(30);
+    private static final Duration DEFAULT_PERSISTENT_TTL = Duration.ofDays(30);
     private static final String REDIS_KEY_PREFIX = "lacr:idempotency:";
 
     private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
     private final LoanClosureIdempotencyRepository idempotencyRepository;
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
+    private final Duration redisTtl;
+    private final Duration persistentTtl;
 
     public LoanClosureIdempotencyStore() {
-        this(null, null, null);
+        this(null, null, null, DEFAULT_REDIS_TTL, DEFAULT_PERSISTENT_TTL);
     }
 
     public LoanClosureIdempotencyStore(
             LoanClosureIdempotencyRepository idempotencyRepository,
             ObjectMapper objectMapper,
             StringRedisTemplate redisTemplate) {
+        this(idempotencyRepository, objectMapper, redisTemplate, DEFAULT_REDIS_TTL, DEFAULT_PERSISTENT_TTL);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LoanClosureIdempotencyStore(
+            LoanClosureIdempotencyRepository idempotencyRepository,
+            ObjectMapper objectMapper,
+            StringRedisTemplate redisTemplate,
+            @Value("${lacr.idempotency.redis-ttl:PT30M}") Duration redisTtl,
+            @Value("${lacr.idempotency.persistence-ttl:P30D}") Duration persistentTtl) {
         this.idempotencyRepository = idempotencyRepository;
         this.objectMapper = objectMapper;
         this.redisTemplate = redisTemplate;
+        this.redisTtl = redisTtl == null ? DEFAULT_REDIS_TTL : redisTtl;
+        this.persistentTtl = persistentTtl == null ? DEFAULT_PERSISTENT_TTL : persistentTtl;
     }
 
     public Optional<Object> get(String key) {
@@ -54,7 +70,7 @@ public class LoanClosureIdempotencyStore {
 
         Optional<Object> redisValue = getFromRedis(key);
         if (redisValue.isPresent()) {
-            cache.put(key, new CacheEntry(redisValue.get(), Instant.now().plus(DEFAULT_TTL)));
+            cache.put(key, new CacheEntry(redisValue.get(), Instant.now().plus(redisTtl)));
             return redisValue;
         }
 
@@ -81,7 +97,7 @@ public class LoanClosureIdempotencyStore {
     }
 
     public void put(String key, Object value) {
-        CacheEntry cacheEntry = new CacheEntry(value, Instant.now().plus(DEFAULT_TTL));
+        CacheEntry cacheEntry = new CacheEntry(value, Instant.now().plus(redisTtl));
         cache.put(key, cacheEntry);
         putInRedis(key, value);
         if (idempotencyRepository != null) {
@@ -90,7 +106,7 @@ public class LoanClosureIdempotencyStore {
             entry.setIdempotencyKey(key);
             entry.setResponseType(value.getClass().getName());
             entry.setPayloadJson(serialize(value));
-            entry.setExpiresAt(LocalDateTime.now().plus(DEFAULT_TTL));
+            entry.setExpiresAt(LocalDateTime.now().plus(persistentTtl));
             idempotencyRepository.save(entry);
         }
     }
@@ -121,7 +137,7 @@ public class LoanClosureIdempotencyStore {
 
         try {
             RedisIdempotencyValue payload = new RedisIdempotencyValue(value.getClass().getName(), serialize(value));
-            redisTemplate.opsForValue().set(redisKey(key), mapper().writeValueAsString(payload), DEFAULT_TTL);
+            redisTemplate.opsForValue().set(redisKey(key), mapper().writeValueAsString(payload), redisTtl);
         } catch (Exception ex) {
             log.warn("Redis idempotency write failed for key {}. Continuing with durable fallback.", key, ex);
         }

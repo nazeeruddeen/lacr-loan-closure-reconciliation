@@ -62,6 +62,12 @@ public class LoanClosureEventEntity {
     @Column(name = "details", length = 1000)
     private String details;
 
+    @Column(name = "previous_hash", length = 64)
+    private String previousHash;
+
+    @Column(name = "record_hash", length = 64, nullable = false)
+    private String recordHash;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

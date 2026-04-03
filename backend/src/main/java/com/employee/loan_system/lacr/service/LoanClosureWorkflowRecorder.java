@@ -39,8 +39,10 @@ public class LoanClosureWorkflowRecorder {
                 closureCase.getReconciliationStatus(),
                 actor,
                 details,
-                LocalDateTime.now());
-        auditStore.append(event);
-        outboxService.appendWorkflowEvent(event);
+                LocalDateTime.now(),
+                null,
+                null);
+        LoanClosureEvent recordedEvent = auditStore.append(event);
+        outboxService.appendWorkflowEvent(recordedEvent);
     }
 }

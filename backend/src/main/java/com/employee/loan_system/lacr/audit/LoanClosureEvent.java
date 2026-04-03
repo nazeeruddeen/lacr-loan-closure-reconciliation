@@ -15,6 +15,8 @@ public record LoanClosureEvent(
         ReconciliationStatus reconciliationStatus,
         String actor,
         String details,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String previousHash,
+        String recordHash
 ) {
 }

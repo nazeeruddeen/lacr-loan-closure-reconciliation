@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,11 +32,14 @@ class LoanClosureOutboxServiceTest {
     @Mock
     private FailedEventService failedEventService;
 
+    @Mock
+    private LoanClosureEventPublisher eventPublisher;
+
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
     void appendWorkflowEventShouldPersistPendingOutboxRecord() {
-        LoanClosureOutboxService service = new LoanClosureOutboxService(outboxRepository, failedEventService, objectMapper, 3);
+        LoanClosureOutboxService service = new LoanClosureOutboxService(outboxRepository, failedEventService, eventPublisher, objectMapper, 3);
 
         service.appendWorkflowEvent(sampleEvent());
 
@@ -47,7 +51,7 @@ class LoanClosureOutboxServiceTest {
 
     @Test
     void publishPendingBatchShouldMarkEventsPublished() {
-        LoanClosureOutboxService service = new LoanClosureOutboxService(outboxRepository, failedEventService, objectMapper, 3);
+        LoanClosureOutboxService service = new LoanClosureOutboxService(outboxRepository, failedEventService, eventPublisher, objectMapper, 3);
         LoanClosureOutboxEvent pending = new LoanClosureOutboxEvent();
         pending.setId(10L);
         pending.setRequestId("REQ-1001");
@@ -57,15 +61,45 @@ class LoanClosureOutboxServiceTest {
         pending.setEventType("CREATED");
         pending.setPayloadJson("{\"requestId\":\"REQ-1001\"}");
         pending.setPublishStatus(LoanClosureOutboxStatus.PENDING);
-        when(outboxRepository.findTop20ByPublishStatusOrderByCreatedAtAsc(LoanClosureOutboxStatus.PENDING)).thenReturn(List.of(pending));
+        when(outboxRepository.findClaimableBatch(any(), anyInt())).thenReturn(List.of(pending));
+        when(outboxRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(outboxRepository.save(any(LoanClosureOutboxEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         int published = service.publishPendingBatch();
 
         assertThat(published).isEqualTo(1);
+        verify(outboxRepository).saveAll(any());
         verify(outboxRepository).save(any(LoanClosureOutboxEvent.class));
         assertThat(pending.getPublishStatus()).isEqualTo(LoanClosureOutboxStatus.PUBLISHED);
         assertThat(pending.getPublishedAt()).isNotNull();
+        assertThat(pending.getProcessingStartedAt()).isNull();
+        assertThat(pending.getAttemptCount()).isEqualTo(1);
+    }
+
+    @Test
+    void recoverStaleProcessingEventsShouldRequeueStaleWork() {
+        LoanClosureOutboxService service = new LoanClosureOutboxService(outboxRepository, failedEventService, eventPublisher, objectMapper, 3);
+        LoanClosureOutboxEvent stale = new LoanClosureOutboxEvent();
+        stale.setId(11L);
+        stale.setRequestId("REQ-1002");
+        stale.setClosureCaseId(2L);
+        stale.setLoanAccountNumber("LN-2002");
+        stale.setAggregateType("LoanClosureCase");
+        stale.setEventType("CLOSED");
+        stale.setPayloadJson("{\"requestId\":\"REQ-1002\"}");
+        stale.setPublishStatus(LoanClosureOutboxStatus.PROCESSING);
+        stale.setProcessingStartedAt(LocalDateTime.now().minusHours(1));
+
+        when(outboxRepository.findStaleProcessingBatch(any(), anyInt())).thenReturn(List.of(stale));
+        when(outboxRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        int recovered = service.recoverStaleProcessingEvents();
+
+        assertThat(recovered).isEqualTo(1);
+        verify(outboxRepository).saveAll(any());
+        assertThat(stale.getPublishStatus()).isEqualTo(LoanClosureOutboxStatus.PENDING);
+        assertThat(stale.getProcessingStartedAt()).isNull();
+        assertThat(stale.getErrorMessage()).contains("Recovered stale processing");
     }
 
     private LoanClosureEvent sampleEvent() {
@@ -79,7 +113,9 @@ class LoanClosureOutboxServiceTest {
                 ReconciliationStatus.PENDING,
                 "closureops",
                 "Created from operator console",
-                LocalDateTime.of(2026, 3, 30, 22, 20)
+                LocalDateTime.of(2026, 3, 30, 22, 20),
+                null,
+                null
         );
     }
 }
