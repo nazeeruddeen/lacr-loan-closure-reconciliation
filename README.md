@@ -84,6 +84,7 @@ npm start
 - backend pods run as a rolling two-replica deployment in Kubernetes
 - application secrets and connection settings are expected to come from an External Secrets store, not committed manifest values
 - the in-repo MySQL, Redis, and Mongo manifests are for integration environments only; production should use managed HA backing services
+- Kafka is treated as an external managed platform dependency in production; the repository configures producer and consumer behavior but does not declare a broker deployment.
 
 ## Delivery characteristics
 - Idempotency is implemented through `LoanClosureIdempotencyStore`, which uses Redis as the fast path while preserving a durable fallback path.
@@ -92,6 +93,7 @@ npm start
 - Publishability is modeled through `LoanClosureOutboxService`, which stores pending workflow events and publishes them through the configured publisher mode.
 - Kafka publishing is available through the broker-aware outbox publisher, while log-mode remains an explicit fallback for local or integration environments.
 - The repository now includes an idempotent Kafka consumer contract that persists consumed-event markers and captures exhausted records through a dead-letter path.
+- The production Kubernetes configmap pins publisher mode to `kafka` and enables consumer startup, while expecting `SPRING_KAFKA_BOOTSTRAP_SERVERS` to resolve to a managed broker endpoint.
 - Stale outbox rows are observable and recoverable through the `/api/v1/ops/outbox/*` operator endpoints and the recovery job.
 - Audit events expose hash-chain metadata so traceability can be verified from the console and CSV exports.
 - Actor attribution comes from authenticated operator identity, so history and audit entries show who performed each action.

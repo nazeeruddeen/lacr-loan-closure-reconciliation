@@ -23,5 +23,6 @@ LACR is an internal operations application for loan-account closure processing. 
 - Operator attribution in audit and status history
 - Structured error contracts
 - Docker, Kubernetes, and Jenkins assets
+- Managed-Kafka production integration posture, with repository-owned publisher and consumer contracts but platform-owned broker infrastructure
 - Prometheus metrics and correlation-aware logging
 - A live operator console with recovery controls, not a static dashboard mock

@@ -36,6 +36,7 @@ This runbook matches the current production hardening in the codebase:
 - MySQL, Redis, and MongoDB all have explicit readiness/liveness checks and resource envelopes in the cluster manifests.
 - Treat the `docker-compose.yml` stack as local integration parity, not the source of truth for production readiness.
 - Production expects managed HA MySQL, Redis, and MongoDB endpoints supplied through the cluster secret store.
+- Production also expects a managed Kafka-compatible broker endpoint supplied through platform networking and configuration; the repository does not provision Kafka in-cluster.
 - When Kafka publishing is enabled, the in-repo consumer persists `idempotencyKey` markers before acknowledging the event and routes exhausted records into the DLQ plus application dead-letter table.
 
 ## Kafka consumer handling

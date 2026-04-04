@@ -7,7 +7,8 @@ pipeline {
     }
 
     environment {
-        APP_NAME = 'lacr-loan-closure-reconciliation'
+        BACKEND_IMAGE = 'lacr-loan-closure-reconciliation'
+        FRONTEND_IMAGE = 'lacr-loan-closure-reconciliation-frontend'
         IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
     }
 
@@ -15,7 +16,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "Building ${APP_NAME} from ${env.BRANCH_NAME ?: 'local'}"
+                echo "Building ${BACKEND_IMAGE} from ${env.BRANCH_NAME ?: 'local'}"
             }
         }
 
@@ -42,8 +43,10 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh "docker build -t ${APP_NAME}:${IMAGE_TAG} -f backend/Dockerfile backend"
-                sh "docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest"
+                sh "docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -f backend/Dockerfile backend"
+                sh "docker tag ${BACKEND_IMAGE}:${IMAGE_TAG} ${BACKEND_IMAGE}:latest"
+                sh "docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -f frontend/Dockerfile frontend"
+                sh "docker tag ${FRONTEND_IMAGE}:${IMAGE_TAG} ${FRONTEND_IMAGE}:latest"
             }
         }
 
@@ -57,8 +60,14 @@ pipeline {
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS')]) {
                     sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin ${DOCKER_REGISTRY_URL}"
-                    sh "docker tag ${APP_NAME}:${IMAGE_TAG} ${DOCKER_REGISTRY_URL}/${APP_NAME}:${IMAGE_TAG}"
-                    sh "docker push ${DOCKER_REGISTRY_URL}/${APP_NAME}:${IMAGE_TAG}"
+                    sh "docker tag ${BACKEND_IMAGE}:${IMAGE_TAG} ${DOCKER_REGISTRY_URL}/${BACKEND_IMAGE}:${IMAGE_TAG}"
+                    sh "docker push ${DOCKER_REGISTRY_URL}/${BACKEND_IMAGE}:${IMAGE_TAG}"
+                    sh "docker tag ${BACKEND_IMAGE}:latest ${DOCKER_REGISTRY_URL}/${BACKEND_IMAGE}:latest"
+                    sh "docker push ${DOCKER_REGISTRY_URL}/${BACKEND_IMAGE}:latest"
+                    sh "docker tag ${FRONTEND_IMAGE}:${IMAGE_TAG} ${DOCKER_REGISTRY_URL}/${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                    sh "docker push ${DOCKER_REGISTRY_URL}/${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                    sh "docker tag ${FRONTEND_IMAGE}:latest ${DOCKER_REGISTRY_URL}/${FRONTEND_IMAGE}:latest"
+                    sh "docker push ${DOCKER_REGISTRY_URL}/${FRONTEND_IMAGE}:latest"
                 }
             }
         }
@@ -71,8 +80,13 @@ pipeline {
                 sh 'kubectl apply -f k8s/00-namespace.yaml'
                 sh 'kubectl apply -f k8s/01-configmap.yaml'
                 sh 'kubectl apply -f k8s/02-secret.yaml'
+                sh 'kubectl apply -f k8s/03-mysql.yaml'
                 sh 'kubectl apply -f k8s/04-backend.yaml'
+                sh 'kubectl apply -f k8s/05-redis.yaml'
+                sh 'kubectl apply -f k8s/06-mongo.yaml'
+                sh 'kubectl apply -f k8s/07-frontend.yaml'
                 sh 'kubectl rollout status deployment/lacr-backend -n lacr-loan --timeout=120s'
+                sh 'kubectl rollout status deployment/lacr-frontend -n lacr-loan --timeout=120s'
             }
         }
     }

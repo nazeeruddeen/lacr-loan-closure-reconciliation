@@ -69,3 +69,16 @@ services:
       SPRING_JPA_SHOW_SQL: "false"
     ports:
       - "8012:8012"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lacr-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      API_UPSTREAM: http://backend:8012
+    ports:
+      - "4500:80"
