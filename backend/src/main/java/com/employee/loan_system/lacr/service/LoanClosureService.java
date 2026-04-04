@@ -287,18 +287,24 @@ public class LoanClosureService {
 
     @Transactional(readOnly = true)
     public LoanClosureSummaryResponse summary() {
-        List<LoanClosureCase> closureCases = closureCaseRepository.findAll();
         Map<LoanClosureStatus, Long> closureStatusCounts = new EnumMap<>(LoanClosureStatus.class);
-        for (LoanClosureStatus status : LoanClosureStatus.values()) {
-            closureStatusCounts.put(status, closureCaseRepository.countByClosureStatus(status));
+        for (LoanClosureCaseRepository.ClosureStatusCountRow row : closureCaseRepository.findClosureStatusCounts()) {
+            closureStatusCounts.put(row.getClosureStatus(), row.getTotal());
         }
+        for (LoanClosureStatus status : LoanClosureStatus.values()) {
+            closureStatusCounts.putIfAbsent(status, 0L);
+        }
+
         Map<ReconciliationStatus, Long> reconciliationStatusCounts = new EnumMap<>(ReconciliationStatus.class);
+        for (LoanClosureCaseRepository.ReconciliationStatusCountRow row : closureCaseRepository.findReconciliationStatusCounts()) {
+            reconciliationStatusCounts.put(row.getReconciliationStatus(), row.getTotal());
+        }
         for (ReconciliationStatus status : ReconciliationStatus.values()) {
-            reconciliationStatusCounts.put(status, closureCaseRepository.countByReconciliationStatus(status));
+            reconciliationStatusCounts.putIfAbsent(status, 0L);
         }
 
         return LoanClosureSummaryResponse.builder()
-                .totalRequests(closureCases.size())
+                .totalRequests(closureCaseRepository.count())
                 .pendingRequests(closureStatusCounts.getOrDefault(LoanClosureStatus.REQUESTED, 0L))
                 .settlementCalculatedRequests(closureStatusCounts.getOrDefault(LoanClosureStatus.SETTLEMENT_CALCULATED, 0L))
                 .reconciliationPendingRequests(closureStatusCounts.getOrDefault(LoanClosureStatus.RECONCILIATION_PENDING, 0L))

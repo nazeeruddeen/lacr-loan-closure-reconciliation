@@ -1,0 +1,164 @@
+<div class="auth-shell" *ngIf="!authenticated && !initializing; else operatorConsole">
+  <section class="auth-panel animated-panel">
+    <div class="eyebrow">LACR Operator Console</div>
+    <h1>Sign in to manage closure settlement, reconciliation, and audit review.</h1>
+    <p>
+      This console is meant for internal operations teams. Sign in with a provisioned operator account whose password is supplied
+      through the runtime secret store.
+    </p>
+
+    <form class="auth-form" [formGroup]="loginForm">
+      <label>
+        <span>Username</span>
+        <input formControlName="username" autocomplete="username" />
+      </label>
+      <label>
+        <span>Password</span>
+        <input type="password" formControlName="password" autocomplete="current-password" />
+      </label>
+      <button type="button" [disabled]="loginBusy" (click)="login()">
+        {{ loginBusy ? 'Signing in...' : 'Sign in' }}
+      </button>
+    </form>
+
+    <div class="hero-status" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+    <div class="credential-grid">
+      <button
+        type="button"
+        class="credential-card"
+        *ngFor="let credential of operatorRoles; trackBy: trackByIndex"
+        (click)="useQuickCredentials(credential.username)">
+        <strong>{{ credential.label }}</strong>
+        <span>{{ credential.username }}</span>
+        <small>password managed outside the UI</small>
+      </button>
+    </div>
+  </section>
+</div>
+
+<ng-template #operatorConsole>
+  <div class="auth-shell auth-shell--loading" *ngIf="initializing">
+    <section class="auth-panel animated-panel">
+      <div class="eyebrow">Restoring session</div>
+      <h1>Loading operator dashboard...</h1>
+      <p>{{ actionMessage }}</p>
+    </section>
+  </div>
+
+  <div class="app-layout" *ngIf="authenticated && !initializing">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">L</div>
+        <div>
+          <div class="brand-title">LACR</div>
+          <div class="brand-subtitle">closure operations</div>
+        </div>
+      </div>
+
+      <div class="operator-card" *ngIf="operatorProfile">
+        <div class="operator-label">Signed in as</div>
+        <strong>{{ operatorProfile.displayName }}</strong>
+        <span>{{ operatorProfile.username }}</span>
+        <div class="operator-roles">
+          <span class="chip chip-mini" *ngFor="let role of operatorProfile.roles; trackBy: trackByIndex">{{ role }}</span>
+        </div>
+      </div>
+
+      <nav class="sidebar__nav">
+        <button class="nav-item" [class.active]="activeTab === 'dashboard'" (click)="setTab('dashboard')">Dashboard</button>
+        <button class="nav-item" [class.active]="activeTab === 'closures'" (click)="setTab('closures')">Closures Queue</button>
+        <button class="nav-item" [class.active]="activeTab === 'actions'" (click)="setTab('actions')">Selected Actions</button>
+        <button class="nav-item" [class.active]="activeTab === 'audit'" (click)="setTab('audit')">Audit Stream</button>
+        <button class="nav-item" [class.active]="activeTab === 'operations'" (click)="setTab('operations')">Operations</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button type="button" class="ghost" (click)="logout()">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="hero-status hero-status--error" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+      <app-lacr-dashboard
+        *ngIf="activeTab === 'dashboard'"
+        [summary]="summary"
+        [stages]="stages"
+        [failedEvents]="failedEvents"
+        [outboxHealth]="outboxHealth"
+        [lastRefreshed]="lastRefreshed"
+        [actionMessage]="actionMessage"
+        [heroAction]="heroAction"
+        [loading]="loading"
+        (refresh)="refreshAll()"
+        (exportSummary)="exportSummaryCsv()"
+        (exportEvents)="exportEventsCsv()"
+        (exportClosures)="exportClosuresCsv()"
+        (stageFilter)="stageFilter($event)">
+      </app-lacr-dashboard>
+
+      <app-lacr-closures
+        *ngIf="activeTab === 'closures'"
+        [searchForm]="searchForm"
+        [closurePage]="closurePage"
+        [closures]="closures"
+        [loading]="loading"
+        [busyClosureId]="busyClosureId"
+        [busyAction]="busyAction"
+        [statusTone]="statusTone.bind(this)"
+        [canCalculateSettlement]="canCalculateSettlement.bind(this)"
+        [canStartReconciliation]="canStartReconciliation.bind(this)"
+        [canReconcile]="canReconcile.bind(this)"
+        [canAdvance]="canAdvance.bind(this)"
+        [recommendedActionLabel]="recommendedActionLabel.bind(this)"
+        (runSearch)="runSearch()"
+        (exportClosures)="exportClosuresCsv()"
+        (previousPage)="previousPage()"
+        (nextPage)="nextPage()"
+        (open)="selectClosure($event); setTab('actions')"
+        (calculateSettlement)="calculateSettlementFor($event)"
+        (moveToReconciliation)="moveToReconciliationFor($event)"
+        (reconcile)="reconcileFor($event)"
+        (advance)="advanceStatusFor($event)">
+      </app-lacr-closures>
+
+      <app-lacr-actions
+        *ngIf="activeTab === 'actions'"
+        [selectedClosure]="selectedClosure"
+        [settlementForm]="settlementForm"
+        [reconcileForm]="reconcileForm"
+        [statusForm]="statusForm"
+        [statusTone]="statusTone.bind(this)"
+        [canCalculateSettlement]="canCalculateSettlement.bind(this)"
+        [canStartReconciliation]="canStartReconciliation.bind(this)"
+        [canReconcile]="canReconcile.bind(this)"
+        [canAdvance]="canAdvance.bind(this)"
+        [availableStatusOptions]="availableStatusOptions.bind(this)"
+        (calculateSettlement)="calculateSettlement()"
+        (moveToReconciliation)="moveToReconciliation()"
+        (reconcile)="reconcile()"
+        (advanceStatus)="advanceStatus()">
+      </app-lacr-actions>
+
+      <app-lacr-operations
+        *ngIf="activeTab === 'operations'"
+        [outboxHealth]="outboxHealth"
+        [failedEvents]="failedEvents"
+        [actionMessage]="actionMessage"
+        [operationsLoading]="operationsLoading"
+        [recoveryBusy]="recoveryBusy"
+        (loadOperations)="loadOperations()"
+        (recoverStaleOutbox)="recoverStaleOutbox()">
+      </app-lacr-operations>
+
+      <app-lacr-audit
+        *ngIf="activeTab === 'audit'"
+        [eventForm]="eventForm"
+        [events]="events"
+        (refreshEvents)="loadEvents()"
+        (exportEvents)="exportEventsCsv()">
+      </app-lacr-audit>
+    </main>
+  </div>
+</ng-template>

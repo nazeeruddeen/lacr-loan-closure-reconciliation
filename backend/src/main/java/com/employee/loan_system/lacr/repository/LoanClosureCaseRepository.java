@@ -8,9 +8,22 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 public interface LoanClosureCaseRepository extends JpaRepository<LoanClosureCase, Long>, JpaSpecificationExecutor<LoanClosureCase> {
+
+    interface ClosureStatusCountRow {
+        LoanClosureStatus getClosureStatus();
+
+        long getTotal();
+    }
+
+    interface ReconciliationStatusCountRow {
+        ReconciliationStatus getReconciliationStatus();
+
+        long getTotal();
+    }
 
     Optional<LoanClosureCase> findByRequestId(String requestId);
 
@@ -23,4 +36,10 @@ public interface LoanClosureCaseRepository extends JpaRepository<LoanClosureCase
 
     @Query("select coalesce(sum(c.outstandingPrincipal), 0) from LoanClosureCase c")
     BigDecimal sumOutstandingPrincipal();
+
+    @Query("select c.closureStatus as closureStatus, count(c) as total from LoanClosureCase c group by c.closureStatus")
+    List<ClosureStatusCountRow> findClosureStatusCounts();
+
+    @Query("select c.reconciliationStatus as reconciliationStatus, count(c) as total from LoanClosureCase c group by c.reconciliationStatus")
+    List<ReconciliationStatusCountRow> findReconciliationStatusCounts();
 }

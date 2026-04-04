@@ -2,7 +2,7 @@
 
 LACR is an operations-focused backend application for loan closure processing. It models the closure lifecycle end to end: intake, settlement calculation, reconciliation, approval, closure, audit traceability, CSV reporting, and idempotent workflow commands.
 
-## Why this project matters
+## Production characteristics
 - Shows strong backend workflow design and state-transition control
 - Demonstrates Redis-backed idempotency for retry-safe operations
 - Tracks every state change in a Mongo-backed audit stream with durable fallback
@@ -21,7 +21,7 @@ LACR is an operations-focused backend application for loan closure processing. I
 7. Search, audit, and export operational data
 
 ## Tech stack
-- Java 17
+- Java 21
 - Spring Boot 3.2
 - Spring Data JPA
 - Spring Security (HTTP Basic for operator access)
@@ -85,15 +85,16 @@ npm start
 - application secrets and connection settings are expected to come from an External Secrets store, not committed manifest values
 - the in-repo MySQL, Redis, and Mongo manifests are for integration environments only; production should use managed HA backing services
 
-## Interview-ready highlights
-- Idempotency is implemented through `LoanClosureIdempotencyStore`, which now uses Redis as the fast-path store while preserving a durable fallback path.
-- Audit visibility is preserved through `LoanClosureAuditStore`, which now uses MongoDB as the primary audit/event store while preserving fallback behavior.
+## Delivery characteristics
+- Idempotency is implemented through `LoanClosureIdempotencyStore`, which uses Redis as the fast path while preserving a durable fallback path.
+- Audit visibility is preserved through `LoanClosureAuditStore`, which uses MongoDB as the primary audit/event store while preserving fallback behavior.
 - Workflow side effects are coordinated through `LoanClosureWorkflowRecorder`, which keeps audit persistence and publishable event recording aligned.
-- Publishability is modeled through `LoanClosureOutboxService`, which stores pending workflow events and retries publication through a scheduled job.
+- Publishability is modeled through `LoanClosureOutboxService`, which stores pending workflow events and publishes them through the configured publisher mode.
+- Kafka publishing is available through the broker-aware outbox publisher, while log-mode remains an explicit fallback for local or integration environments.
+- The repository now includes an idempotent Kafka consumer contract that persists consumed-event markers and captures exhausted records through a dead-letter path.
 - Stale outbox rows are observable and recoverable through the `/api/v1/ops/outbox/*` operator endpoints and the recovery job.
-- Audit events now expose hash-chain metadata so traceability can be verified from the console and CSV exports.
-- Actor attribution now comes from authenticated operator identity, so history and audit entries show who performed each action.
-- The frontend is a secured operator console, not a mock dashboard fallback.
+- Audit events expose hash-chain metadata so traceability can be verified from the console and CSV exports.
+- Actor attribution comes from authenticated operator identity, so history and audit entries show who performed each action.
 
 ## Operational references
 - [API docs](./API_DOCS.md)

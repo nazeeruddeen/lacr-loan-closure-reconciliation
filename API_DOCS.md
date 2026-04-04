@@ -56,6 +56,10 @@ Authorization: Basic base64(<operator-username>:<operator-password>)
 - Redis is the primary idempotency fast path, with the persistent store retained as a durable fallback.
 - MongoDB is the primary audit/event store for event search and CSV export, with fallback persistence retained for resilience.
 - Workflow mutations also record outbox-style publishable events for downstream integration and replay-friendly operations.
+- The outbox publisher supports `log` and `kafka` delivery modes through runtime configuration.
+- Kafka deliveries carry `requestId`, `closureCaseId`, `loanAccountNumber`, `eventType`, `aggregateType`, and `idempotencyKey` headers for downstream consumers.
+- The repository includes a Kafka consumer contract that persists `idempotencyKey` values in `loan_closure_consumed_events` before acknowledging business-side consumption.
+- Consumer failures are retried through the listener error handler and exhausted records are routed to the configured DLQ topic, then persisted through the application dead-letter table for operator review.
 - Stale outbox recovery is an operator action, not a hidden background assumption.
 - Audit events include hash-chain metadata (`previousHash`, `recordHash`) so tampering can be detected during review.
 - Audit events capture operator actor, status transition, reconciliation state, and free-form remarks.

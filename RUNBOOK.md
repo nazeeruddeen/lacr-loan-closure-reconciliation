@@ -3,7 +3,7 @@
 This runbook matches the current production hardening in the codebase:
 - durable idempotency for closure commands
 - hash-chained audit events
-- outbox publish and recovery flow
+- broker-aware outbox publish and recovery flow
 - live operator console with recovery controls
 - correlation-aware workflow logging and metrics
 - ExternalSecret-backed runtime configuration and secret-managed operator passwords
@@ -36,6 +36,13 @@ This runbook matches the current production hardening in the codebase:
 - MySQL, Redis, and MongoDB all have explicit readiness/liveness checks and resource envelopes in the cluster manifests.
 - Treat the `docker-compose.yml` stack as local integration parity, not the source of truth for production readiness.
 - Production expects managed HA MySQL, Redis, and MongoDB endpoints supplied through the cluster secret store.
+- When Kafka publishing is enabled, the in-repo consumer persists `idempotencyKey` markers before acknowledging the event and routes exhausted records into the DLQ plus application dead-letter table.
+
+## Kafka consumer handling
+1. Enable Kafka publishing and consumer startup together when running the full event-driven path.
+2. Use the `loan_closure_consumed_events` table as the first source of truth for whether an event was already processed.
+3. If consumer retries are exhausted, inspect the broker DLQ topic and the `failed_events` table together.
+4. Do not replay a DLQ record until the `idempotencyKey` marker and the failure reason both make sense.
 
 ## Stale outbox recovery
 Use this when the outbox has processing rows older than the reclaim threshold.

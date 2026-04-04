@@ -188,6 +188,32 @@ class LoanClosureServiceTest {
         assertThat(page.getContent().get(0).requestId()).isEqualTo("REQ-001");
     }
 
+    @Test
+    void summaryShouldUseGroupedRepositoryCounts() {
+        LoanClosureService service = service();
+        when(closureCaseRepository.findClosureStatusCounts()).thenReturn(List.of(
+                closureStatusCount(LoanClosureStatus.REQUESTED, 2L),
+                closureStatusCount(LoanClosureStatus.CLOSED, 1L)
+        ));
+        when(closureCaseRepository.findReconciliationStatusCounts()).thenReturn(List.of(
+                reconciliationStatusCount(ReconciliationStatus.PENDING, 2L),
+                reconciliationStatusCount(ReconciliationStatus.MATCHED, 1L)
+        ));
+        when(closureCaseRepository.count()).thenReturn(3L);
+        when(closureCaseRepository.sumSettlementAmount()).thenReturn(new BigDecimal("305000.00"));
+        when(closureCaseRepository.sumOutstandingPrincipal()).thenReturn(new BigDecimal("300000.00"));
+
+        var summary = service.summary();
+
+        assertThat(summary.totalRequests()).isEqualTo(3L);
+        assertThat(summary.pendingRequests()).isEqualTo(2L);
+        assertThat(summary.closedRequests()).isEqualTo(1L);
+        assertThat(summary.pendingReconciliations()).isEqualTo(2L);
+        assertThat(summary.matchedReconciliations()).isEqualTo(1L);
+        assertThat(summary.totalSettlementAmount()).isEqualByComparingTo("305000.00");
+        assertThat(summary.totalOutstandingPrincipal()).isEqualByComparingTo("300000.00");
+    }
+
     private LoanClosureCase existingCase() {
         LoanClosureCase closureCase = new LoanClosureCase();
         closureCase.setId(1L);
@@ -203,6 +229,34 @@ class LoanClosureServiceTest {
         closureCase.setSettlementAmount(new BigDecimal("101600.00"));
         closureCase.setReconciliationStatus(ReconciliationStatus.PENDING);
         return closureCase;
+    }
+
+    private LoanClosureCaseRepository.ClosureStatusCountRow closureStatusCount(LoanClosureStatus status, long total) {
+        return new LoanClosureCaseRepository.ClosureStatusCountRow() {
+            @Override
+            public LoanClosureStatus getClosureStatus() {
+                return status;
+            }
+
+            @Override
+            public long getTotal() {
+                return total;
+            }
+        };
+    }
+
+    private LoanClosureCaseRepository.ReconciliationStatusCountRow reconciliationStatusCount(ReconciliationStatus status, long total) {
+        return new LoanClosureCaseRepository.ReconciliationStatusCountRow() {
+            @Override
+            public ReconciliationStatus getReconciliationStatus() {
+                return status;
+            }
+
+            @Override
+            public long getTotal() {
+                return total;
+            }
+        };
     }
 
     @org.junit.jupiter.api.AfterEach
