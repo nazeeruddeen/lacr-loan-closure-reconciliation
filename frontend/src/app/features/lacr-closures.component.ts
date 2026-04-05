@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+﻿import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { LoanClosureItem, LoanClosurePageResponse } from '../lacr.models';
@@ -14,7 +14,7 @@ import { LoanClosureItem, LoanClosurePageResponse } from '../lacr.models';
         <span class="chip">Live search</span>
       </div>
 
-      <form class="filters" [formGroup]="searchForm">
+      <form class="filters" [formGroup]="searchForm" data-testid="lacr-search-form">
         <label><span>Loan account</span><input formControlName="loanAccountNumber" placeholder="LN-1001" /></label>
         <label><span>Borrower</span><input formControlName="borrowerName" placeholder="Borrower name" /></label>
         <label>
@@ -45,7 +45,7 @@ import { LoanClosureItem, LoanClosurePageResponse } from '../lacr.models';
       </form>
 
       <div class="chip-row">
-        <button type="button" class="chip active" (click)="runSearch.emit()">Run search</button>
+        <button type="button" class="chip active" (click)="runSearch.emit()" data-testid="lacr-run-search">Run search</button>
         <button type="button" class="chip" (click)="exportClosures.emit()">Export CSV</button>
         <span class="chip">Page {{ (closurePage.number || 0) + 1 }} / {{ closurePage.totalPages || 1 }}</span>
         <button type="button" class="chip" [disabled]="closurePage.first" (click)="previousPage.emit()">Prev</button>
@@ -61,7 +61,7 @@ import { LoanClosureItem, LoanClosurePageResponse } from '../lacr.models';
           <div>Actions</div>
         </div>
 
-        <div class="table-row" *ngFor="let closure of closures; trackBy: trackByIndex">
+        <div class="table-row" *ngFor="let closure of closures; trackBy: trackByIndex" [attr.data-testid]="'lacr-closure-row-' + closure.id">
           <div class="table-cell primary">
             <strong>{{ closure.requestId }}</strong>
             <span>{{ closure.loanAccountNumber }}</span>
@@ -79,7 +79,7 @@ import { LoanClosureItem, LoanClosurePageResponse } from '../lacr.models';
             <span class="status status-secondary">{{ closure.reconciliationStatus }}</span>
           </div>
           <div class="table-cell actions">
-            <button type="button" class="ghost" (click)="open.emit(closure)">Open</button>
+            <button type="button" class="ghost" (click)="open.emit(closure)" [attr.data-testid]="'lacr-open-' + closure.id">Open</button>
             <button type="button" class="ghost" [disabled]="!canCalculateSettlement(closure) || isBusy(closure.id, 'settle')" (click)="calculateSettlement.emit(closure)">
               {{ isBusy(closure.id, 'settle') ? 'Working...' : 'Settle' }}
             </button>
@@ -134,3 +134,7 @@ export class LacrClosuresComponent {
     return this.loading && this.busyClosureId === closureId && this.busyAction === action;
   }
 }
+
+
+
+

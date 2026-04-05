@@ -1,4 +1,4 @@
-<div class="auth-shell" *ngIf="!authenticated && !initializing; else operatorConsole">
+﻿<div class="auth-shell" *ngIf="!authenticated && !initializing; else operatorConsole">
   <section class="auth-panel animated-panel">
     <div class="eyebrow">LACR Operator Console</div>
     <h1>Sign in to manage closure settlement, reconciliation, and audit review.</h1>
@@ -7,16 +7,16 @@
       through the runtime secret store.
     </p>
 
-    <form class="auth-form" [formGroup]="loginForm">
+    <form class="auth-form" [formGroup]="loginForm" data-testid="lacr-login-form">
       <label>
         <span>Username</span>
-        <input formControlName="username" autocomplete="username" />
+        <input formControlName="username" autocomplete="username" data-testid="lacr-login-username" />
       </label>
       <label>
         <span>Password</span>
-        <input type="password" formControlName="password" autocomplete="current-password" />
+        <input type="password" formControlName="password" autocomplete="current-password" data-testid="lacr-login-password" />
       </label>
-      <button type="button" [disabled]="loginBusy" (click)="login()">
+      <button type="button" [disabled]="loginBusy" (click)="login()" data-testid="lacr-login-submit">
         {{ loginBusy ? 'Signing in...' : 'Sign in' }}
       </button>
     </form>
@@ -66,11 +66,11 @@
       </div>
 
       <nav class="sidebar__nav">
-        <button class="nav-item" [class.active]="activeTab === 'dashboard'" (click)="setTab('dashboard')">Dashboard</button>
-        <button class="nav-item" [class.active]="activeTab === 'closures'" (click)="setTab('closures')">Closures Queue</button>
-        <button class="nav-item" [class.active]="activeTab === 'actions'" (click)="setTab('actions')">Selected Actions</button>
-        <button class="nav-item" [class.active]="activeTab === 'audit'" (click)="setTab('audit')">Audit Stream</button>
-        <button class="nav-item" [class.active]="activeTab === 'operations'" (click)="setTab('operations')">Operations</button>
+        <button class="nav-item" [class.active]="activeTab === 'dashboard'" (click)="setTab('dashboard')" data-testid="lacr-tab-dashboard">Dashboard</button>
+        <button class="nav-item" [class.active]="activeTab === 'closures'" (click)="setTab('closures')" data-testid="lacr-tab-closures">Closures Queue</button>
+        <button class="nav-item" [class.active]="activeTab === 'actions'" (click)="setTab('actions')" data-testid="lacr-tab-actions">Selected Actions</button>
+        <button class="nav-item" [class.active]="activeTab === 'audit'" (click)="setTab('audit')" data-testid="lacr-tab-audit">Audit Stream</button>
+        <button class="nav-item" [class.active]="activeTab === 'operations'" (click)="setTab('operations')" data-testid="lacr-tab-operations">Operations</button>
       </nav>
 
       <div class="sidebar-footer">
@@ -162,3 +162,12 @@
     </main>
   </div>
 </ng-template>
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,29 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: lacr-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9093:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: lacr-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${LACR_OBSERVABILITY_GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${LACR_OBSERVABILITY_GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3003:3000"

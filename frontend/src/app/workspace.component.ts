@@ -11,6 +11,15 @@ import { LacrClosuresComponent } from './features/lacr-closures.component';
 import { LacrDashboardComponent } from './features/lacr-dashboard.component';
 import { LacrOperationsComponent } from './features/lacr-operations.component';
 import {
+  buildLacrCreateForm,
+  buildLacrEventForm,
+  buildLacrLoginForm,
+  buildLacrReconcileForm,
+  buildLacrSearchForm,
+  buildLacrSettlementForm,
+  buildLacrStatusForm
+} from './lacr-workspace.forms';
+import {
   AdvanceClosureStatusRequest,
   ApiErrorResponse,
   CalculateSettlementRequest,
@@ -106,6 +115,7 @@ export class LacrWorkspaceComponent implements OnInit {
   outboxHealth: OutboxHealth | null = null;
   selectedClosure: LoanClosureItem | null = null;
   stages: StageCard[] = [];
+  private routeSelectedClosureId: number | null = null;
 
   readonly loginForm: FormGroup;
   readonly searchForm: FormGroup;
@@ -122,53 +132,13 @@ export class LacrWorkspaceComponent implements OnInit {
     private readonly route: ActivatedRoute,
     private readonly router: Router
   ) {
-    this.loginForm = this.fb.group({
-      username: ['', [Validators.required]],
-      password: ['', [Validators.required]]
-    });
-
-    this.searchForm = this.fb.group({
-      loanAccountNumber: [''],
-      borrowerName: [''],
-      closureStatus: [''],
-      reconciliationStatus: [''],
-      minSettlementAmount: [''],
-      maxSettlementAmount: ['']
-    });
-
-    this.createForm = this.fb.group({
-      requestId: ['', [Validators.required]],
-      loanAccountNumber: ['', [Validators.required]],
-      borrowerName: ['', [Validators.required]],
-      closureReason: ['', [Validators.required]],
-      outstandingPrincipal: ['', [Validators.required, Validators.min(0)]],
-      accruedInterest: ['0.00', [Validators.required, Validators.min(0)]],
-      penaltyAmount: ['0.00', [Validators.required, Validators.min(0)]],
-      processingFee: ['0.00', [Validators.required, Validators.min(0)]],
-      remarks: ['']
-    });
-
-    this.settlementForm = this.fb.group({
-      adjustmentAmount: ['0.00', [Validators.required, Validators.min(0)]],
-      remarks: ['']
-    });
-
-    this.reconcileForm = this.fb.group({
-      bankConfirmedAmount: ['0.00', [Validators.required, Validators.min(0)]],
-      remarks: ['']
-    });
-
-    this.statusForm = this.fb.group({
-      targetStatus: ['APPROVED', [Validators.required]],
-      remarks: ['']
-    });
-
-    this.eventForm = this.fb.group({
-      requestId: [''],
-      loanAccountNumber: [''],
-      eventType: [''],
-      text: ['']
-    });
+    this.loginForm = buildLacrLoginForm(this.fb);
+    this.searchForm = buildLacrSearchForm(this.fb);
+    this.createForm = buildLacrCreateForm(this.fb);
+    this.settlementForm = buildLacrSettlementForm(this.fb);
+    this.reconcileForm = buildLacrReconcileForm(this.fb);
+    this.statusForm = buildLacrStatusForm(this.fb);
+    this.eventForm = buildLacrEventForm(this.fb);
 
     this.stages = this.stageCatalog.map((stage) => ({ ...stage, count: 0 }));
   }
@@ -176,6 +146,12 @@ export class LacrWorkspaceComponent implements OnInit {
   ngOnInit(): void {
     this.route.data.subscribe((data) => {
       this.activeTab = (data['tab'] as AppTab | undefined) ?? 'dashboard';
+    });
+    this.route.queryParamMap.subscribe((params) => {
+      const selectedClosureId = Number(params.get('selectedClosureId'));
+      this.routeSelectedClosureId = Number.isFinite(selectedClosureId) && selectedClosureId > 0
+        ? selectedClosureId
+        : null;
     });
     const profile = this.authSession.restoreProfile();
     if (profile && this.authSession.hasSession()) {
@@ -196,7 +172,7 @@ export class LacrWorkspaceComponent implements OnInit {
       audit: '/audit',
       operations: '/operations'
     };
-    void this.router.navigateByUrl(path[tab]);
+    void this.router.navigate([path[tab]], { queryParams: this.selectionQueryParams() });
   }
 
   useQuickCredentials(username: string): void {
@@ -297,13 +273,24 @@ export class LacrWorkspaceComponent implements OnInit {
           this.closures = pageResponse.content ?? [];
           if (this.selectedClosure) {
             const refreshed = this.closures.find((item) => item.id === this.selectedClosure?.id);
-            if (refreshed) {
-              this.selectedClosure = refreshed;
-              this.patchActionForms(refreshed);
-            }
+          if (refreshed) {
+            this.selectedClosure = refreshed;
+            this.patchActionForms(refreshed);
+          }
           }
           if (!this.selectedClosure && this.closures.length) {
-            this.selectClosure(this.closures[0]);
+            const preferred = this.routeSelectedClosureId
+              ? this.closures.find((item) => item.id === this.routeSelectedClosureId) ?? this.closures[0]
+              : this.closures[0];
+            this.selectClosure(preferred);
+          } else if (!this.selectedClosure && this.routeSelectedClosureId) {
+            this.api.get(this.routeSelectedClosureId).subscribe({
+              next: (closure) => this.selectClosure(closure),
+              error: () => {
+                this.routeSelectedClosureId = null;
+                this.syncSelectionQueryParams();
+              }
+            });
           }
         },
         error: (error) => this.handleApiError(error, 'Unable to load the closure queue.')
@@ -407,6 +394,8 @@ export class LacrWorkspaceComponent implements OnInit {
 
   selectClosure(closure: LoanClosureItem): void {
     this.selectedClosure = closure;
+    this.routeSelectedClosureId = closure.id;
+    this.syncSelectionQueryParams();
     this.patchActionForms(closure);
     this.errorMessage = '';
     this.actionMessage = `Selected ${closure.requestId} for workflow actions.`;
@@ -823,6 +812,18 @@ export class LacrWorkspaceComponent implements OnInit {
       last: true,
       empty: true
     };
+  }
+
+  private syncSelectionQueryParams(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: this.selectionQueryParams(),
+      replaceUrl: true
+    });
+  }
+
+  private selectionQueryParams(): Record<string, number> | {} {
+    return this.routeSelectedClosureId ? { selectedClosureId: this.routeSelectedClosureId } : {};
   }
 }
 

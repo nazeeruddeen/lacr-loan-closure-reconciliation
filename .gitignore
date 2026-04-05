@@ -5,3 +5,6 @@ node_modules/
 .mvn/
 .idea/
 .vscode/
+.env
+frontend/playwright-report/
+frontend/test-results/

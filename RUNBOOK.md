@@ -82,6 +82,25 @@ Use this when the outbox has processing rows older than the reclaim threshold.
 - Frontend: `npm run build`
 - Full stack: `docker compose up -d --build`
 
+## Playwright golden path
+- Required env:
+  - `LACR_E2E_PASSWORD`
+  - optional `LACR_E2E_USERNAME` defaults to `closureops`
+  - optional `LACR_E2E_BASE_URL` defaults to `http://127.0.0.1:4500`
+  - optional `LACR_E2E_API_BASE_URL` defaults to `http://127.0.0.1:8012`
+- Start the local stack first with `docker compose up -d --build`.
+- Then run `.\node_modules\.bin\playwright.cmd test` from `frontend`.
+- The golden path covers login, settlement calculation, reconciliation start, and matched reconciliation.
+
+## Local observability
+- Start the monitoring stack from `observability` with `docker compose up -d`.
+- Prometheus: [http://localhost:9093](http://localhost:9093)
+- Grafana: [http://localhost:3003](http://localhost:3003)
+- Default Grafana credentials:
+  - username `admin`
+  - password `admin`
+- The provisioned dashboard scrapes `host.docker.internal:8012/actuator/prometheus`.
+
 ## Minikube smoke deployment
 - Build unique images such as `lacr-loan-closure-reconciliation:smoke-1` and
   `lacr-loan-closure-reconciliation-frontend:smoke-1`.
