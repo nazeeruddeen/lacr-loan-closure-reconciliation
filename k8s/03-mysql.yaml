@@ -53,8 +53,8 @@ spec:
               command:
                 - sh
                 - -c
-                - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent
-            initialDelaySeconds: 20
+                - MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqladmin ping -h 127.0.0.1 -uroot --silent > /dev/null
+            initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 6
@@ -63,8 +63,8 @@ spec:
               command:
                 - sh
                 - -c
-                - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent
-            initialDelaySeconds: 40
+                - MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqladmin ping -h 127.0.0.1 -uroot --silent > /dev/null
+            initialDelaySeconds: 90
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3

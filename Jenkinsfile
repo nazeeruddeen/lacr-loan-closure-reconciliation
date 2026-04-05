@@ -85,6 +85,7 @@ pipeline {
                 sh 'kubectl apply -f k8s/05-redis.yaml'
                 sh 'kubectl apply -f k8s/06-mongo.yaml'
                 sh 'kubectl apply -f k8s/07-frontend.yaml'
+                sh 'kubectl apply -f k8s/08-ingress.yaml'
                 sh 'kubectl rollout status deployment/lacr-backend -n lacr-loan --timeout=120s'
                 sh 'kubectl rollout status deployment/lacr-frontend -n lacr-loan --timeout=120s'
             }

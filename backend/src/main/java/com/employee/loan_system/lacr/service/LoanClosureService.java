@@ -22,6 +22,8 @@ import com.employee.loan_system.lacr.repository.LoanClosureCaseRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -86,6 +88,7 @@ public class LoanClosureService {
     }
 
     @Transactional
+    @CacheEvict(value = "loanClosureSummary", allEntries = true)
     public LoanClosureResponse createClosureRequest(CreateLoanClosureRequest request) {
         increment(closureRequestsTotal);
         String requestId = normalize(request.getRequestId());
@@ -139,6 +142,7 @@ public class LoanClosureService {
     }
 
     @Transactional
+    @CacheEvict(value = "loanClosureSummary", allEntries = true)
     public LoanClosureResponse calculateSettlement(Long id, CalculateSettlementRequest request) {
         increment(closureRequestsTotal);
         LoanClosureCase closureCase = findClosureCase(id);
@@ -176,6 +180,7 @@ public class LoanClosureService {
     }
 
     @Transactional
+    @CacheEvict(value = "loanClosureSummary", allEntries = true)
     public LoanClosureResponse moveToReconciliation(Long id, AdvanceClosureStatusRequest request) {
         increment(closureRequestsTotal);
         LoanClosureCase closureCase = findClosureCase(id);
@@ -201,6 +206,7 @@ public class LoanClosureService {
     }
 
     @Transactional
+    @CacheEvict(value = "loanClosureSummary", allEntries = true)
     public LoanClosureResponse reconcile(Long id, ReconcileClosureRequest request) {
         increment(closureRequestsTotal);
         LoanClosureCase closureCase = findClosureCase(id);
@@ -244,6 +250,7 @@ public class LoanClosureService {
     }
 
     @Transactional
+    @CacheEvict(value = "loanClosureSummary", allEntries = true)
     public LoanClosureResponse advanceStatus(Long id, AdvanceClosureStatusRequest request) {
         increment(closureRequestsTotal);
         LoanClosureCase closureCase = findClosureCase(id);
@@ -286,6 +293,7 @@ public class LoanClosureService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "loanClosureSummary")
     public LoanClosureSummaryResponse summary() {
         Map<LoanClosureStatus, Long> closureStatusCounts = new EnumMap<>(LoanClosureStatus.class);
         for (LoanClosureCaseRepository.ClosureStatusCountRow row : closureCaseRepository.findClosureStatusCounts()) {

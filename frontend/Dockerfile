@@ -6,6 +6,7 @@ COPY . .
 RUN npm run build
 
 FROM nginx:1.27-alpine
+ENV NGINX_ENVSUBST_FILTER="API_UPSTREAM"
 COPY nginx.conf /etc/nginx/templates/default.conf.template
-COPY --from=build /app/dist/lacr-dashboard /usr/share/nginx/html
+COPY --from=build /app/dist/lacr-dashboard/browser /usr/share/nginx/html
 EXPOSE 80

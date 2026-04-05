@@ -35,6 +35,9 @@ This runbook matches the current production hardening in the codebase:
 - Kubernetes uses Actuator-backed health probes on `/actuator/health`, `/actuator/health/readiness`, and `/actuator/health/liveness`.
 - MySQL, Redis, and MongoDB all have explicit readiness/liveness checks and resource envelopes in the cluster manifests.
 - Treat the `docker-compose.yml` stack as local integration parity, not the source of truth for production readiness.
+- External access is expected through the ingress manifest at `k8s/08-ingress.yaml`, with `/` routed to the frontend service and `/api` routed to the backend service.
+- Replace the placeholder host `lacr.example.com` and TLS secret `lacr-tls` with platform-owned DNS and certificate values before live deployment.
+- Keep Actuator endpoints internal to the cluster unless the platform team explicitly exposes them through a protected operations ingress.
 - Production expects managed HA MySQL, Redis, and MongoDB endpoints supplied through the cluster secret store.
 - Production also expects a managed Kafka-compatible broker endpoint supplied through platform networking and configuration; the repository does not provision Kafka in-cluster.
 - When Kafka publishing is enabled, the in-repo consumer persists `idempotencyKey` markers before acknowledging the event and routes exhausted records into the DLQ plus application dead-letter table.
