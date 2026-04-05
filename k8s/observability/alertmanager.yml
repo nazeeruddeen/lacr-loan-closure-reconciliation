@@ -1,8 +1,13 @@
 global:
   resolve_timeout: 5m
+  smtp_smarthost: smtp.gmail.com:587
+  smtp_from: nazeershaik.ai@gmail.com
+  smtp_auth_username: nazeershaik.ai@gmail.com
+  smtp_auth_identity: nazeershaik.ai@gmail.com
+  smtp_auth_password_file: /etc/alertmanager/secrets/smtp-password
 
 route:
-  receiver: lacr-webhook
+  receiver: lacr-notifications
   group_by:
     - alertname
     - service
@@ -11,7 +16,12 @@ route:
   repeat_interval: 4h
 
 receivers:
-  - name: lacr-webhook
+  - name: lacr-notifications
     webhook_configs:
       - url: http://lacr-alert-receiver.lacr-loan.svc.cluster.local:8080/
         send_resolved: true
+    email_configs:
+      - to: nazeershaik.ai@gmail.com
+        send_resolved: true
+        headers:
+          subject: '[LACR] {{ .CommonLabels.alertname }}'
