@@ -41,6 +41,60 @@ pipeline {
             }
         }
 
+        stage('Frontend E2E') {
+            steps {
+                withEnv([
+                        'CI=true',
+                        'LACR_MYSQL_ROOT_PASSWORD=lacrRoot#2026',
+                        'LACR_DB_PASSWORD=lacrDb#2026',
+                        'LACR_CLOSUREOPS_PASSWORD=ClosureOps#2026',
+                        'LACR_RECONLEAD_PASSWORD=ReconLead#2026',
+                        'LACR_AUDITOR_PASSWORD=Auditor#2026',
+                        'LACR_OPSADMIN_PASSWORD=OpsAdmin#2026',
+                        'LACR_FRONTEND_HOST_PORT=4500',
+                        'LACR_MYSQL_HOST_PORT=33063',
+                        'LACR_REDIS_HOST_PORT=6380',
+                        'LACR_MONGO_HOST_PORT=27018'
+                ]) {
+                    sh '''
+                        set -euo pipefail
+                        rm -rf frontend/playwright-report frontend/test-results
+                        docker compose down -v --remove-orphans || true
+                        docker compose up -d --build
+                        ready=0
+                        for attempt in $(seq 1 36); do
+                          if curl -fsS http://127.0.0.1:8012/actuator/health/readiness >/dev/null && curl -fsS http://127.0.0.1:4500/ >/dev/null; then
+                            ready=1
+                            break
+                          fi
+                          sleep 5
+                        done
+                        if [ "$ready" -ne 1 ]; then
+                          docker compose logs
+                          exit 1
+                        fi
+                        docker run --rm --add-host=host.docker.internal:host-gateway \
+                          -e CI=true \
+                          -e PLAYWRIGHT_JUNIT_OUTPUT_NAME=test-results/e2e-results.xml \
+                          -e LACR_E2E_BASE_URL=http://host.docker.internal:4500 \
+                          -e LACR_E2E_API_BASE_URL=http://host.docker.internal:8012 \
+                          -e LACR_E2E_PASSWORD="$LACR_CLOSUREOPS_PASSWORD" \
+                          -v "$PWD/frontend:/work" \
+                          -w /work \
+                          mcr.microsoft.com/playwright:v1.59.1-noble \
+                          sh -lc "npm ci && npx playwright test tests/golden-path.spec.ts --reporter=line,junit,html"
+                    '''
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'frontend/test-results/e2e-results.xml'
+                    archiveArtifacts allowEmptyArchive: true, artifacts: 'frontend/playwright-report/**,frontend/test-results/**'
+                    sh 'docker compose down -v --remove-orphans || true'
+                }
+            }
+        }
+
         stage('Docker Build') {
             steps {
                 sh "docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -f backend/Dockerfile backend"
