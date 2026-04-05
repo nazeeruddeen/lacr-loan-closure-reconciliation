@@ -1,0 +1,17 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: lacr-webhook
+  group_by:
+    - alertname
+    - service
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 4h
+
+receivers:
+  - name: lacr-webhook
+    webhook_configs:
+      - url: http://lacr-alert-receiver.lacr-loan.svc.cluster.local:8080/
+        send_resolved: true

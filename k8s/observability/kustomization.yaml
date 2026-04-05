@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: lacr-loan
+resources:
+  - observability-stack.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: lacr-prometheus-config
+    files:
+      - prometheus.yml
+      - alert-rules.yml
+  - name: lacr-alertmanager-config
+    files:
+      - alertmanager.yml
+  - name: lacr-grafana-datasources
+    files:
+      - datasource.yml
+  - name: lacr-grafana-dashboards-provider
+    files:
+      - dashboards.yml
+  - name: lacr-grafana-dashboard
+    files:
+      - dashboard.json

@@ -1,0 +1,216 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lacr-prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lacr-prometheus
+  template:
+    metadata:
+      labels:
+        app: lacr-prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: quay.io/prometheus/prometheus:v2.53.0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+          ports:
+            - containerPort: 9090
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: storage
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: lacr-prometheus-config
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lacr-prometheus
+spec:
+  selector:
+    app: lacr-prometheus
+  ports:
+    - port: 9090
+      targetPort: http
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lacr-alertmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lacr-alertmanager
+  template:
+    metadata:
+      labels:
+        app: lacr-alertmanager
+    spec:
+      containers:
+        - name: alertmanager
+          image: quay.io/prometheus/alertmanager:v0.28.1
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+          ports:
+            - containerPort: 9093
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: storage
+              mountPath: /alertmanager
+      volumes:
+        - name: config
+          configMap:
+            name: lacr-alertmanager-config
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lacr-alertmanager
+spec:
+  selector:
+    app: lacr-alertmanager
+  ports:
+    - port: 9093
+      targetPort: http
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lacr-alert-receiver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lacr-alert-receiver
+  template:
+    metadata:
+      labels:
+        app: lacr-alert-receiver
+    spec:
+      containers:
+        - name: alert-receiver
+          image: mendhak/http-https-echo:31
+          env:
+            - name: HTTP_PORT
+              value: '8080'
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lacr-alert-receiver
+spec:
+  selector:
+    app: lacr-alert-receiver
+  ports:
+    - port: 8080
+      targetPort: http
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lacr-grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lacr-grafana
+  template:
+    metadata:
+      labels:
+        app: lacr-grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.1.0
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: admin
+          ports:
+            - containerPort: 3000
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboard
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: datasources
+          configMap:
+            name: lacr-grafana-datasources
+        - name: dashboards-provider
+          configMap:
+            name: lacr-grafana-dashboards-provider
+        - name: dashboard
+          configMap:
+            name: lacr-grafana-dashboard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lacr-grafana
+spec:
+  selector:
+    app: lacr-grafana
+  ports:
+    - port: 3000
+      targetPort: http
+      name: http
