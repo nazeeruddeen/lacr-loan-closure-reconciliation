@@ -99,7 +99,9 @@ Use this when the outbox has processing rows older than the reclaim threshold.
 - Default Grafana credentials:
   - username `admin`
   - password `admin`
-- The provisioned dashboard scrapes `host.docker.internal:8012/actuator/prometheus`.
+- Local Docker scrapes use [prometheus.local.yml](C:\Users\nazee\Desktop\loan_management\lacr-loan-closure-reconciliation\observability\prometheus.local.yml).
+- Kubernetes-friendly scrape targets live in [prometheus.k8s.yml](C:\Users\nazee\Desktop\loan_management\lacr-loan-closure-reconciliation\observability\prometheus.k8s.yml).
+- Domain alert rules live in [alert-rules.yml](C:\Users\nazee\Desktop\loan_management\lacr-loan-closure-reconciliation\observability\alert-rules.yml).
 
 ## Minikube smoke deployment
 - Build unique images such as `lacr-loan-closure-reconciliation:smoke-1` and

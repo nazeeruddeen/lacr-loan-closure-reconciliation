@@ -1,0 +1,42 @@
+groups:
+  - name: lacr-domain
+    rules:
+      - alert: LacrOutboxFailuresPresent
+        expr: lacr_outbox_status_count{status="failed"} > 0
+        for: 10m
+        labels:
+          severity: critical
+          service: lacr
+        annotations:
+          summary: LACR outbox has failed events
+          description: One or more outbox events are stuck in FAILED for over 10 minutes.
+
+      - alert: LacrStaleOutboxProcessingPresent
+        expr: lacr_outbox_status_count{status="stale"} > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: lacr
+        annotations:
+          summary: LACR stale outbox processing detected
+          description: Outbox events have exceeded the reclaim window and need intervention.
+
+      - alert: LacrMismatchedReconciliationsPresent
+        expr: lacr_reconciliation_status_count{status="mismatched"} > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: lacr
+        annotations:
+          summary: LACR mismatched reconciliations need review
+          description: At least one closure reconciliation is currently mismatched for more than 10 minutes.
+
+      - alert: LacrFailedEventsQueuePresent
+        expr: lacr_failed_events_current_count > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: lacr
+        annotations:
+          summary: LACR failed-event queue is non-empty
+          description: Failed workflow events are present and should be investigated or replayed.

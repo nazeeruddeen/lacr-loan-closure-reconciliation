@@ -2,7 +2,7 @@
   "title": "LACR Backend Overview",
   "uid": "lacr-overview",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "15s",
   "panels": [
     {
@@ -24,58 +24,66 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "HTTP Requests / sec",
+      "title": "Failed Outbox Events",
       "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
       "targets": [
-        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"lacr-backend\"}[5m]))", "refId": "A" }
+        { "expr": "lacr_outbox_status_count{status=\"failed\"}", "refId": "A" }
       ]
     },
     {
       "id": 3,
       "type": "stat",
-      "title": "Heap Used",
+      "title": "Stale Outbox Events",
       "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
       "targets": [
-        { "expr": "sum(jvm_memory_used_bytes{job=\"lacr-backend\",area=\"heap\"})", "refId": "A" }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
-        }
-      }
+        { "expr": "lacr_outbox_status_count{status=\"stale\"}", "refId": "A" }
+      ]
     },
     {
       "id": 4,
       "type": "stat",
-      "title": "Live Threads",
+      "title": "Mismatched Reconciliations",
       "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
       "targets": [
-        { "expr": "jvm_threads_live_threads{job=\"lacr-backend\"}", "refId": "A" }
+        { "expr": "lacr_reconciliation_status_count{status=\"mismatched\"}", "refId": "A" }
       ]
     },
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Request Rate",
+      "title": "Closure Queue by Status",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
       "targets": [
-        { "expr": "sum by (uri) (rate(http_server_requests_seconds_count{job=\"lacr-backend\",uri!=\"UNKNOWN\"}[5m]))", "legendFormat": "{{uri}}", "refId": "A" }
+        { "expr": "lacr_closure_status_count", "legendFormat": "{{status}}", "refId": "A" }
       ]
     },
     {
       "id": 6,
       "type": "timeseries",
-      "title": "JVM Heap",
+      "title": "Outbox Publish Status",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
       "targets": [
-        { "expr": "sum(jvm_memory_used_bytes{job=\"lacr-backend\",area=\"heap\"})", "legendFormat": "heap used", "refId": "A" },
-        { "expr": "sum(jvm_memory_max_bytes{job=\"lacr-backend\",area=\"heap\"})", "legendFormat": "heap max", "refId": "B" }
+        { "expr": "lacr_outbox_status_count", "legendFormat": "{{status}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "Settlement Exposure",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "targets": [
+        { "expr": "lacr_amount", "legendFormat": "{{kind}}", "refId": "A" }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
-        }
-      }
+      "fieldConfig": { "defaults": { "unit": "currencyINR" } }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Failed Event Queue",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "targets": [
+        { "expr": "lacr_failed_events_current_count", "refId": "A" }
+      ]
     }
   ]
 }
