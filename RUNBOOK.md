@@ -81,3 +81,19 @@ Use this when the outbox has processing rows older than the reclaim threshold.
 - Backend: `mvn clean test`
 - Frontend: `npm run build`
 - Full stack: `docker compose up -d --build`
+
+## Minikube smoke deployment
+- Build unique images such as `lacr-loan-closure-reconciliation:smoke-1` and
+  `lacr-loan-closure-reconciliation-frontend:smoke-1`.
+- Load those images with `minikube image load`.
+- Create the smoke secret before backend rollout with MySQL, Redis, Mongo, and
+  operator-password values.
+- For local smoke validation, override config to:
+  - `LACR_OUTBOX_PUBLISHER_MODE=log`
+  - `LACR_OUTBOX_KAFKA_CONSUMER_ENABLED=false`
+- Set deployment images explicitly with `kubectl set image`.
+- Scale the backend to one replica for smoke validation if the cluster does not
+  need a two-replica rollout.
+- Verify ingress from the ingress controller pod and expect:
+  - `308 Permanent Redirect` on HTTP
+  - `200 OK` plus frontend HTML on HTTPS
