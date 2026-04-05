@@ -11,10 +11,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - lacr.example.com
+        - lacr.platform.internal
       secretName: lacr-tls
   rules:
-    - host: lacr.example.com
+    - host: lacr.platform.internal
       http:
         paths:
           - path: /api

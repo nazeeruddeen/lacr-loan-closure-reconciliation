@@ -45,6 +45,291 @@ a {
 
 button, input, select, textarea {
   font: inherit;
+  color: inherit;
+}
+
+button {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  appearance: none;
+  width: 100%;
+}
+
+.panel,
+.queue-panel,
+.hero-copy,
+.hero-panel,
+.stat-card,
+.ops-card,
+.selected-box,
+.empty-state {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+}
+
+.panel {
+  padding: 22px;
+  margin-bottom: 20px;
+}
+
+.section-head,
+.section-head.compact,
+.button-row,
+.chip-row,
+.meta-row,
+.result-head,
+.history-top,
+.history-meta,
+.failed-event-top,
+.failed-event-meta,
+.ops-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-head,
+.section-head.compact,
+.result-head,
+.history-top,
+.history-meta,
+.failed-event-top,
+.failed-event-meta,
+.ops-card-head {
+  justify-content: space-between;
+}
+
+.section-head {
+  margin-bottom: 16px;
+}
+
+.section-head.compact {
+  margin-bottom: 14px;
+}
+
+.panel-title,
+.section-head h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.filters,
+.action-form,
+.event-list,
+.history-list,
+.closure-table,
+.operations-toolbar,
+.failed-event-list,
+.workflow-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.filters {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.filters label,
+.action-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.filters span,
+.action-form span,
+.event-time,
+.api-method,
+.result-sub,
+.result-metrics span,
+.history-top span,
+.history-meta span,
+.history-remarks,
+.failed-event-top span,
+.failed-event-meta span,
+.failed-event-reason,
+.table-cell span,
+.table-head {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.filters input,
+.filters select,
+.action-form input,
+.action-form select {
+  padding: 13px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+}
+
+.filters input:focus,
+.filters select:focus,
+.action-form input:focus,
+.action-form select:focus {
+  outline: none;
+  border-color: rgba(108, 229, 200, 0.45);
+  box-shadow: 0 0 0 3px rgba(108, 229, 200, 0.12);
+}
+
+button {
+  border-radius: 14px;
+  padding: 13px 18px;
+  font-weight: 700;
+  color: #08131d;
+  background: linear-gradient(135deg, var(--accent), #82f0d7);
+  transition: transform 120ms ease, filter 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+button.ghost,
+button.chip {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+}
+
+button.chip.active {
+  background: rgba(108, 229, 200, 0.16);
+  color: var(--text);
+}
+
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+button:disabled {
+  opacity: 0.72;
+  cursor: progress;
+}
+
+.chip,
+.pill,
+.event-hash span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.closure-table {
+  margin-top: 18px;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(260px, 1.2fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.table-head {
+  background: rgba(255, 255, 255, 0.05);
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+}
+
+.table-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.table-cell strong {
+  font-size: 0.98rem;
+}
+
+.table-cell.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.status {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+}
+
+.status.risk {
+  color: var(--danger);
+}
+
+.status-secondary {
+  color: var(--muted);
+}
+
+.action-form,
+.selected-box,
+.history-item,
+.failed-event-item,
+.event-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.event-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.event-title,
+.result-title {
+  font-weight: 800;
+  letter-spacing: 0.01rem;
+}
+
+.button-row {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1180px) {
+  .table-row {
+    grid-template-columns: 1fr;
+  }
+
+  .table-cell.actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .button-row {
+    flex-direction: column;
+  }
+
+  .event-card {
+    grid-template-columns: 1fr;
+  }
 }
 
 ::-webkit-scrollbar {

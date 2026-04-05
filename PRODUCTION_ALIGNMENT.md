@@ -30,7 +30,7 @@ Smoke validation status
 - mongo rollout: passed
 - ingress verification: passed
 
-Best demo flow
+Recommended operator walkthrough
 1. Show a closure request lifecycle and operator-facing recovery controls.
 2. Explain durable idempotency and audit-chain integrity.
 3. Show outbox health and recovery behavior.

@@ -73,6 +73,7 @@ spec:
           args:
             - --config.file=/etc/alertmanager/alertmanager.yml
             - --storage.path=/alertmanager
+            # Local-development default; staging/prod should override with a reachable platform URL.
             - --web.external-url=http://localhost:9095
           ports:
             - containerPort: 9093
